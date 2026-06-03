@@ -1,0 +1,36 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime data (don't commit user media or outputs)
+uploads/*
+shorts_output/*
+!uploads/.gitkeep
+!shorts_output/.gitkeep
+
+# Media files anywhere
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+*.m4v
+*.wav
+*.mp3
+
+# Whisper model cache
+*.bin
+models/
+
+# Internal docs (task brief — not for public repo)
+documents/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

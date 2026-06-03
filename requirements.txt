@@ -1,0 +1,27 @@
+# AutoShorts AI — all dependencies are free, local, CPU-only.
+# Python 3.10+
+
+# Web server (Module 1)
+Flask==3.0.3
+
+# Transcription (Module 2) — CPU int8 Whisper
+faster-whisper==1.0.3
+
+# Scoring / audio analysis (Module 3)
+numpy==1.26.4
+librosa==0.10.2.post1
+
+# Rendering & effects (Module 4 & 5)
+moviepy==2.1.1
+opencv-python==4.10.0.84
+pillow==10.4.0
+
+# Subtitles (Module 5)
+pysrt==1.1.2
+
+# Utilities
+tqdm==4.66.5
+
+# NOTE: ffmpeg is a SYSTEM dependency, not a pip package.
+#   Windows: winget install Gyan.FFmpeg
+#   Ubuntu:  sudo apt install ffmpeg

@@ -1,0 +1,72 @@
+"""
+Central configuration for AutoShorts AI.
+
+Hard rules enforced here:
+  - No hardcoded absolute paths. Everything is relative to this file's
+    location (the project root) and can be overridden via environment vars.
+  - Must run identically on Windows 10+ and Ubuntu 22.04.
+  - 100% local, CPU-only, no paid APIs.
+
+Import this module anywhere with `from config import CONFIG`.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# Project root = directory containing this file. Never hardcode paths elsewhere.
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def _env_path(var: str, default: Path) -> Path:
+    """Resolve a path from an env var, falling back to a project-relative default."""
+    value = os.environ.get(var)
+    return Path(value).resolve() if value else default
+
+
+class Config:
+    # --- Directories -------------------------------------------------------
+    BASE_DIR: Path = BASE_DIR
+    UPLOAD_DIR: Path = _env_path("AUTOSHORTS_UPLOAD_DIR", BASE_DIR / "uploads")
+    OUTPUT_DIR: Path = _env_path("AUTOSHORTS_OUTPUT_DIR", BASE_DIR / "shorts_output")
+
+    # --- Upload limits -----------------------------------------------------
+    ALLOWED_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
+    MAX_UPLOAD_MB = int(os.environ.get("AUTOSHORTS_MAX_UPLOAD_MB", "1024"))  # 1 GB
+
+    # --- Transcription (Module 2) -----------------------------------------
+    # faster-whisper model: tiny/base/small/medium. base = good speed/accuracy on CPU.
+    WHISPER_MODEL = os.environ.get("AUTOSHORTS_WHISPER_MODEL", "base")
+    WHISPER_COMPUTE_TYPE = os.environ.get("AUTOSHORTS_COMPUTE_TYPE", "int8")  # CPU-friendly
+    WHISPER_DEVICE = "cpu"  # hard rule: CPU only
+
+    # --- Scoring / Selection (Module 3) -----------------------------------
+    CLIP_MIN_WORDS = 8
+    CLIP_MAX_WORDS = 30
+    CLIP_MIN_DURATION = 12.0   # seconds
+    CLIP_MAX_DURATION = 60.0   # seconds
+    TOP_N_CLIPS = int(os.environ.get("AUTOSHORTS_TOP_N", "3"))
+    PAUSE_THRESHOLD = 1.5      # seconds of silence = natural cut point
+
+    # --- Rendering (Module 4) ---------------------------------------------
+    TARGET_WIDTH = 1080
+    TARGET_HEIGHT = 1920       # 9:16 vertical
+    FPS = 30
+    ZOOM_START = 1.0
+    ZOOM_END = 1.15
+    ZOOM_DURATION = 1.5        # seconds of punch-in
+
+    # --- App ---------------------------------------------------------------
+    SECRET_KEY = os.environ.get("AUTOSHORTS_SECRET_KEY", "dev-key-change-me")
+    HOST = os.environ.get("AUTOSHORTS_HOST", "127.0.0.1")
+    PORT = int(os.environ.get("AUTOSHORTS_PORT", "5000"))
+
+    @classmethod
+    def ensure_dirs(cls) -> None:
+        """Create runtime directories if missing. Safe to call repeatedly."""
+        cls.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        cls.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+CONFIG = Config
