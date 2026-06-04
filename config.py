@@ -93,6 +93,16 @@ class Config:
     ZOOM_START = 1.0
     ZOOM_END = 1.15
     ZOOM_DURATION = 1.5        # seconds of punch-in
+    # Encoder settings (passed to ffmpeg via moviepy). x264 + aac = universally
+    # playable MP4. CRF 20 = visually lossless-ish; lower = bigger/better.
+    VIDEO_CODEC = os.environ.get("AUTOSHORTS_VIDEO_CODEC", "libx264")
+    AUDIO_CODEC = os.environ.get("AUTOSHORTS_AUDIO_CODEC", "aac")
+    RENDER_PRESET = os.environ.get("AUTOSHORTS_RENDER_PRESET", "medium")
+    RENDER_CRF = int(os.environ.get("AUTOSHORTS_RENDER_CRF", "20"))
+    # Subject framing for the 9:16 crop. Off = center crop (fast, deterministic).
+    # On = sample frames and bias the horizontal crop toward a detected face
+    # (OpenCV Haar cascade; stretch goal). Override with "1"/"true".
+    FACE_DETECT = os.environ.get("AUTOSHORTS_FACE_DETECT", "0").lower() in {"1", "true", "yes"}
 
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("AUTOSHORTS_SECRET_KEY", "dev-key-change-me")

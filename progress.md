@@ -23,7 +23,7 @@ vertical shorts with burned-in animated captions. Open-source.
 | 1 | Backend & Upload | ✅ **Done** | 0 |
 | 2 | Transcription | ✅ **Done** | 1 |
 | 3 | Scoring & Selection | ✅ **Done** | 2 (or sample_transcript.json) |
-| 4 | Rendering & Effects | ⬜ Not started | 3 |
+| 4 | Rendering & Effects | ✅ **Done** | 3 |
 | 5 | Animated Captions & SRT | ⬜ Not started | 4 |
 | 6 | Frontend & Integration | ⬜ Not started | 1–5 |
 
@@ -135,18 +135,39 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 ---
 
-## Phase 4 — Video Rendering & Effects ⬜
+## Phase 4 — Video Rendering & Effects ✅
 **Module 4.** **Depends on:** Phase 3.
 **Goal:** Turn selected clip time-ranges into 9:16 vertical video files.
 
 **Deliverables:**
-- [ ] `renderer.py` — cut clip, reframe to 9:16 (1080×1920), export MP4
-- [ ] `effects.py` — punch-in zoom (1.0x → 1.15x over ~1.5s)
-- [ ] Center/subject crop (optional OpenCV face detection — stretch)
-- [ ] Output clips saved to `shorts_output/`
-- [ ] Wired into the job orchestrator (real "rendering" stage)
+- [x] `renderer.py` — cut clip, reframe to 9:16 (1080×1920), export MP4
+- [x] `effects.py` — punch-in zoom (1.0x → 1.15x over ~1.5s)
+- [x] Center/subject crop (optional OpenCV face detection — stretch, off by default)
+- [x] Output clips saved to `shorts_output/<job_id>/`
+- [x] Wired into the job orchestrator (real "rendering" stage)
 
-**Done when:** selected clips render as 9:16 MP4s with the zoom effect.
+**Done when:** selected clips render as 9:16 MP4s with the zoom effect. ✅
+
+**Notes:**
+- **Reframe = scale-to-cover + crop.** Source is scaled (ceil) so it fully covers
+  1080×1920 (no letterboxing), then cropped — vertically centered, horizontally on a
+  `focus_x_ratio`. Done with moviepy's own `resized`/`cropped` so the clip's declared
+  `size` stays correct for the encoder.
+- **Zoom is a constant-size cv2 transform.** `punch_in_zoom` scales each frame by an eased
+  `ZOOM_START→ZOOM_END` factor (held flat after `ZOOM_DURATION`) and center-crops back to the
+  same dimensions — so chaining it after the reframe never changes `clip.size`. This is *why*
+  the reframe uses moviepy effects (size-tracking) and the zoom uses a raw frame transform.
+- **Subject framing resolved:** center crop is the default (fast, deterministic). Optional
+  Haar-cascade face detection (`AUTOSHORTS_FACE_DETECT=1`) samples 3 frames and biases the
+  horizontal crop toward the largest detected face; falls back to center when no face/cascade.
+- New `config.py` tunables (all env-overridable): `VIDEO_CODEC` (libx264), `AUDIO_CODEC` (aac),
+  `RENDER_PRESET` (medium), `RENDER_CRF` (20), `FACE_DETECT` (off).
+- No `app.py`/`orchestrator.py` changes — the `render(video_path, clip, out_dir)` stage contract
+  was already wired; this just fills the stub body.
+- Verified: 20s 1280×720 test source → clip `[3.0, 16.5]` rendered to a 1080×1920 h264/30fps MP4,
+  13.5s, stereo aac. End past source duration is clamped; non-positive duration raises. Zoom factor
+  ramps 1.0→1.075@0.75s→1.15 (held); transform is identity at t=0 and magnifies later, shape
+  preserved. `/health` still 200.
 
 ---
 
@@ -190,7 +211,8 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
 - Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B) — leaning B.
-- Subject framing: center crop vs OpenCV face detection.
+- ~~Subject framing: center crop vs OpenCV face detection.~~ **Resolved (Phase 4):** center crop
+  by default; optional Haar face detection behind `AUTOSHORTS_FACE_DETECT`.
 - ~~Default Whisper model size (`base` for now).~~ **Resolved (Phase 2):** `base`, env-overridable via `AUTOSHORTS_WHISPER_MODEL`.
 
 ## Carry-forward decisions (cross-phase)
@@ -224,7 +246,32 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `start`** to map them onto the cut clip's local timeline. `components` (per-signal score
   breakdown) is debug/tuning metadata — safe to ignore downstream.
 
+- **[Phase 4 → Phase 5] The render builds a final clip, then writes it — captions slot in
+  before the write.** `renderer.render` chains `subclipped → reframe_to_vertical → punch_in_zoom`
+  into a 1080×1920 clip and only then calls `write_videofile`. Phase 5 should add a caption
+  overlay step in this same chain *before* `write_videofile` (e.g. `CompositeVideoClip([final,
+  *word_clips])`) and export the SRT alongside the MP4 in `out_dir`. **Caption word times must be
+  offset by the clip `start`** (per the Phase-3 carry-forward) to map onto the cut clip's local
+  timeline. Effects live in `pipeline/effects.py`; the punch-in zoom is a *constant-size* frame
+  transform, so the post-zoom clip is exactly `(TARGET_WIDTH, TARGET_HEIGHT)` — caption layout can
+  assume those dimensions. Output filename is `clip_<start*100, zero-padded>.mp4`; the SRT should
+  share that stem.
+
 ## Changelog
+- **2026-06-04** — Phase 4 completed. Implemented `pipeline/renderer.py` and `pipeline/effects.py`.
+  `effects.reframe_to_vertical` scale-covers + crops to 1080×1920 (moviepy `resized`/`cropped`, so
+  `size` stays correct), biased by an optional `focus_x_ratio`; `effects.punch_in_zoom` is a
+  constant-size cv2 frame transform easing `ZOOM_START→ZOOM_END` over `ZOOM_DURATION` then holding;
+  `effects.detect_focus_x_ratio` is a stretch Haar-cascade face detector (off by default) that
+  samples 3 frames. `renderer.render` cuts the clip, clamps `end` to the real media duration,
+  reframes, zooms, and writes an x264/aac MP4 to `shorts_output/<job_id>/clip_<start>.mp4`. Added
+  `config.py` tunables (`VIDEO_CODEC`, `AUDIO_CODEC`, `RENDER_PRESET`, `RENDER_CRF`, `FACE_DETECT`).
+  No `app.py`/`orchestrator.py` changes — the stage contract was already wired. Resolved the
+  subject-framing open decision (center crop default + optional face detect). Logged the
+  `[Phase 4 → Phase 5]` carry-forward (overlay captions before the write; SRT shares the file stem;
+  offset word times by clip `start`; post-zoom clip is exactly the target dimensions). Verified a
+  20s test source → 1080×1920 h264/30fps/13.5s/stereo-aac MP4, zoom ramp correct, over-duration
+  clamp works, `/health` still 200.
 - **2026-06-04** — Phase 3 completed. Implemented heuristic, no-LLM clip scoring + selection.
   `pipeline/scorer.py`: flattens transcript words → sentence units (split on `>PAUSE_THRESHOLD`
   gaps or sentence punctuation) → sliding-window duration-valid candidates, each scored by a
