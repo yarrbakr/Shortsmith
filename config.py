@@ -53,6 +53,39 @@ class Config:
     TOP_N_CLIPS = int(os.environ.get("AUTOSHORTS_TOP_N", "3"))
     PAUSE_THRESHOLD = 1.5      # seconds of silence = natural cut point
 
+    # Heuristic scoring is keyword/energy based (no LLM — stays local + fast).
+    # Hook phrases score higher when they land in a clip's opening words.
+    # Lower-cased; matched case-insensitively. Roman Urdu is first-class here.
+    HOOK_KEYWORDS_EN = [
+        "here's", "here is", "the secret", "nobody tells you", "biggest mistake",
+        "let me show you", "did you know", "the truth", "you won't believe",
+        "the reason", "this is why", "what if", "how to", "stop", "never",
+        "always", "trust me", "listen", "imagine",
+    ]
+    HOOK_KEYWORDS_UR = [
+        "dekhiye", "dekho", "suniye", "sun lo", "asli baat", "sach ye hai",
+        "yaad rakhna", "sabse bari", "raaz", "dhyan se", "trust me",
+        "yaqeen karo", "samjho", "ek baat",
+    ]
+    # Disfluencies/filler that signal low-quality, rambling speech.
+    FILLER_WORDS = {
+        "um", "umm", "uh", "uhh", "er", "erm", "like", "basically", "literally",
+        "actually", "yaar", "matlab", "woh", "haan", "acha", "toh",
+    }
+    # Multi-word fillers + outro phrases checked against clip text (substring).
+    FILLER_PHRASES = ["you know", "kind of", "sort of", "i mean", "you see"]
+    OUTRO_PHRASES = [
+        "thanks for watching", "rest of the video", "see you next",
+        "see you in the next", "subscribe", "like and share", "hit the bell",
+        "that's it for", "that's all for",
+    ]
+    # Score weights (sum ~= 1.0). Each sub-score is normalized to 0..1.
+    W_HOOK = float(os.environ.get("AUTOSHORTS_W_HOOK", "0.30"))
+    W_LENGTH = float(os.environ.get("AUTOSHORTS_W_LENGTH", "0.15"))
+    W_PAUSE = float(os.environ.get("AUTOSHORTS_W_PAUSE", "0.15"))
+    W_ENERGY = float(os.environ.get("AUTOSHORTS_W_ENERGY", "0.20"))
+    W_REPETITION = float(os.environ.get("AUTOSHORTS_W_REPETITION", "0.20"))
+
     # --- Rendering (Module 4) ---------------------------------------------
     TARGET_WIDTH = 1080
     TARGET_HEIGHT = 1920       # 9:16 vertical

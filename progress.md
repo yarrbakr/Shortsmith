@@ -22,7 +22,7 @@ vertical shorts with burned-in animated captions. Open-source.
 | 0 | Scaffold & Setup | ✅ **Done** | — |
 | 1 | Backend & Upload | ✅ **Done** | 0 |
 | 2 | Transcription | ✅ **Done** | 1 |
-| 3 | Scoring & Selection | ⬜ Not started | 2 (or sample_transcript.json) |
+| 3 | Scoring & Selection | ✅ **Done** | 2 (or sample_transcript.json) |
 | 4 | Rendering & Effects | ⬜ Not started | 3 |
 | 5 | Animated Captions & SRT | ⬜ Not started | 4 |
 | 6 | Frontend & Integration | ⬜ Not started | 1–5 |
@@ -95,22 +95,43 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 ---
 
-## Phase 3 — AI Clip Selection & Scoring ⬜
+## Phase 3 — AI Clip Selection & Scoring ✅
 **Module 3.** **Depends on:** Phase 2 (can develop against `sample_transcript.json`).
 **Goal:** Pick the best N candidate clips from the transcript.
 
 **Deliverables:**
-- [ ] `scorer.py` — scores candidate segments by:
-  - [ ] Hook / keyword matching (English + Roman Urdu)
-  - [ ] Sentence length filter (8–30 words)
-  - [ ] Pause detection (>1.5s = natural cut point)
-  - [ ] Audio RMS energy (librosa)
-  - [ ] Repetition penalty
-- [ ] `selector.py` — greedy, non-overlapping selection of top-N clips
-- [ ] Output: ranked clip list with start/end times + scores
-- [ ] Wired into the job orchestrator (real "scoring/selecting" stage)
+- [x] `scorer.py` — scores candidate segments by:
+  - [x] Hook / keyword matching (English + Roman Urdu)
+  - [x] Sentence length filter (8–30 words)
+  - [x] Pause detection (>1.5s = natural cut point)
+  - [x] Audio RMS energy (librosa)
+  - [x] Repetition penalty
+- [x] `selector.py` — greedy, non-overlapping selection of top-N clips
+- [x] Output: ranked clip list with start/end times + scores
+- [x] Wired into the job orchestrator (real "scoring/selecting" stage)
 
-**Done when:** given a transcript, it returns the top-N non-overlapping clips ranked by score.
+**Done when:** given a transcript, it returns the top-N non-overlapping clips ranked by score. ✅
+
+**Notes:**
+- **No new tunables hardcoded.** Hook lists (`HOOK_KEYWORDS_EN/UR`), `FILLER_WORDS`/`FILLER_PHRASES`,
+  `OUTRO_PHRASES`, and the five score weights (`W_HOOK/_LENGTH/_PAUSE/_ENERGY/_REPETITION`, env-overridable)
+  all live in `config.py` alongside the existing clip thresholds.
+- **Candidate generation:** words are flattened across segments, split into sentence units at a
+  `>PAUSE_THRESHOLD` gap *or* sentence punctuation, then a sliding window emits every duration-valid
+  `[CLIP_MIN_DURATION, CLIP_MAX_DURATION]` run (de-duped). Over-long pause-free monologues are split into
+  duration-bounded chunks so they still yield candidates.
+- **Word/duration tension resolved:** duration is the hard clip bound; the 8–30 word range is a
+  per-candidate *length sub-score* (peaks in-range, tapers outside), not a hard cap — 12 s clips
+  routinely exceed 30 words.
+- **Energy reuses Phase-2 `audio.wav`** at `video_path.parent/"audio.wav"` (loaded once via librosa,
+  frame-wise RMS ÷ global mean, squashed to 0..1). Missing file / import error → neutral `0.5`, so
+  offline scoring and empty-transcript jobs never crash.
+- **Empty transcript → `[]`** from both `score()` and `select()`; the orchestrator then completes the
+  job with "0 clip(s)" rather than erroring.
+- Verified offline against `sample_transcript.json`: 14 candidates → top picks are the two strong hooks
+  ("Let me show you the three steps…" 0.83, "Here is the secret nobody tells you…" 0.76); the filler
+  ("So um, yeah, you know, like…") and outro segments are excluded; results are non-overlapping. The
+  librosa energy path was confirmed with a synthetic quiet/loud WAV (0.10 vs 0.90). `/health` still 200.
 
 ---
 
@@ -195,8 +216,27 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   orchestrator catches it and stops the job cleanly with `status="error"` + a message.
   When you implement a stage, replace the `raise` with a real return value of the
   contracted type — no orchestrator change needed.
+- **[Phase 3 → Phases 4–5] Clip dicts carry word-level timestamps.** Each selected clip is
+  `{start, end, text, score, words, components}`. `renderer.render` (Phase 4) only needs
+  `start`/`end` to cut; the per-clip `words` list (each `{word, start, end}`, with timestamps
+  in the **source video's** timeline) is preserved specifically so Phase 5 can burn word-synced
+  captions without re-running transcription. **Phase 5 must offset word times by the clip
+  `start`** to map them onto the cut clip's local timeline. `components` (per-signal score
+  breakdown) is debug/tuning metadata — safe to ignore downstream.
 
 ## Changelog
+- **2026-06-04** — Phase 3 completed. Implemented heuristic, no-LLM clip scoring + selection.
+  `pipeline/scorer.py`: flattens transcript words → sentence units (split on `>PAUSE_THRESHOLD`
+  gaps or sentence punctuation) → sliding-window duration-valid candidates, each scored by a
+  weighted blend of hook/keyword match (English + Roman Urdu, opening-weighted), per-clip length,
+  pause-clean boundaries, librosa RMS energy (reusing Phase-2 `audio.wav`, neutral 0.5 fallback),
+  and a filler/repetition/outro penalty. `pipeline/selector.py`: greedy non-overlapping top-N by
+  score. Added `config.py` tunables (`HOOK_KEYWORDS_EN/UR`, `FILLER_WORDS`/`FILLER_PHRASES`,
+  `OUTRO_PHRASES`, `W_*` weights). No `app.py`/`orchestrator.py` changes — the stage contract was
+  already wired. Logged `[Phase 3 → Phases 4–5]` carry-forward (clips carry word-level timestamps
+  for caption sync; offset by clip `start`). Verified offline against `sample_transcript.json`
+  (hooks rank top, filler/outro excluded, non-overlapping), empty transcript → `[]` (no crash),
+  librosa energy path on a synthetic WAV (0.10 quiet vs 0.90 loud), and `/health` still 200.
 - **2026-06-04** — Phase 2 completed. Implemented `pipeline/transcriber.py`: ffmpeg
   extracts a 16 kHz mono `audio.wav` into the job `work_dir`, then a cached (thread-safe)
   faster-whisper `base`/int8 model transcribes it with `word_timestamps=True` into
