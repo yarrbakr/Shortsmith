@@ -40,6 +40,10 @@ class Config:
     WHISPER_MODEL = os.environ.get("AUTOSHORTS_WHISPER_MODEL", "base")
     WHISPER_COMPUTE_TYPE = os.environ.get("AUTOSHORTS_COMPUTE_TYPE", "int8")  # CPU-friendly
     WHISPER_DEVICE = "cpu"  # hard rule: CPU only
+    WHISPER_BEAM_SIZE = int(os.environ.get("AUTOSHORTS_BEAM_SIZE", "5"))
+    # VAD drops non-speech segments -> cleaner word timing. Override with "0"/"false".
+    WHISPER_VAD_FILTER = os.environ.get("AUTOSHORTS_VAD_FILTER", "1").lower() not in {"0", "false", "no"}
+    AUDIO_SAMPLE_RATE = 16000  # Whisper's expected rate; also the WAV extraction rate.
 
     # --- Scoring / Selection (Module 3) -----------------------------------
     CLIP_MIN_WORDS = 8

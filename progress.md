@@ -21,7 +21,7 @@ vertical shorts with burned-in animated captions. Open-source.
 |------|--------|--------|-----------|
 | 0 | Scaffold & Setup | ✅ **Done** | — |
 | 1 | Backend & Upload | ✅ **Done** | 0 |
-| 2 | Transcription | ⬜ Not started | 1 |
+| 2 | Transcription | ✅ **Done** | 1 |
 | 3 | Scoring & Selection | ⬜ Not started | 2 (or sample_transcript.json) |
 | 4 | Rendering & Effects | ⬜ Not started | 3 |
 | 5 | Animated Captions & SRT | ⬜ Not started | 4 |
@@ -70,19 +70,28 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 ---
 
-## Phase 2 — AI Transcription ⬜
+## Phase 2 — AI Transcription ✅
 **Module 2.** **Depends on:** Phase 1.
 **Goal:** Convert a video's audio into a word-level transcript.
 
 **Deliverables:**
-- [ ] `transcriber.py` using faster-whisper (CPU, int8)
-- [ ] Extract audio from the uploaded video (ffmpeg)
-- [ ] Generate `transcript.json` matching `sample_transcript.json` schema
-- [ ] Word-level timestamps (`word_timestamps=True`) — required for caption sync
-- [ ] Model size configurable via `config.py` (default `base`)
-- [ ] Wired into the job orchestrator (real "transcribing" stage)
+- [x] `transcriber.py` using faster-whisper (CPU, int8)
+- [x] Extract audio from the uploaded video (ffmpeg) → 16 kHz mono `audio.wav` in `work_dir`
+- [x] Generate `transcript.json` matching `sample_transcript.json` schema
+- [x] Word-level timestamps (`word_timestamps=True`) — required for caption sync
+- [x] Model size configurable via `config.py` (default `base`)
+- [x] Wired into the job orchestrator (real "transcribing" stage)
 
-**Done when:** an uploaded video produces a valid word-level `transcript.json`.
+**Done when:** an uploaded video produces a valid word-level `transcript.json`. ✅
+
+**Notes:**
+- Cached `WhisperModel` singleton (thread-safe) so the model loads once across jobs.
+- New config tunables: `WHISPER_BEAM_SIZE` (5), `WHISPER_VAD_FILTER` (on), `AUDIO_SAMPLE_RATE`
+  (16000) — all env-overridable.
+- No-speech robustness: VAD can strip all audio on silent/music-only clips, which makes
+  faster-whisper's language detection raise `ValueError`. Handled by retrying once with VAD
+  off, then falling back to a valid empty transcript (`language="unknown"`, duration via
+  ffprobe) so a job never dies on a cryptic error.
 
 ---
 
@@ -161,7 +170,7 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 > below if it affects a later phase.
 - Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B) — leaning B.
 - Subject framing: center crop vs OpenCV face detection.
-- Default Whisper model size (`base` for now).
+- ~~Default Whisper model size (`base` for now).~~ **Resolved (Phase 2):** `base`, env-overridable via `AUTOSHORTS_WHISPER_MODEL`.
 
 ## Carry-forward decisions (cross-phase)
 > A running log of decisions made in one phase that constrain or pre-do work in a later
@@ -179,12 +188,25 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `renderer.render(video_path, clip, out_dir) -> Path`.
   Implementing a phase = filling the stub body; **do not change these signatures** (the
   orchestrator and later phases depend on them).
+- **[Phase 2 → Phase 3] `audio.wav` (16 kHz mono) is pre-extracted in `work_dir`.** The
+  transcriber leaves the extracted WAV on disk next to `transcript.json`. Module 3 should
+  **reuse it for librosa RMS energy** rather than re-extracting audio from the source video.
 - **[Phase 1 → Phases 2–5] Unimplemented stages raise `NotImplementedError`.** The
   orchestrator catches it and stops the job cleanly with `status="error"` + a message.
   When you implement a stage, replace the `raise` with a real return value of the
   contracted type — no orchestrator change needed.
 
 ## Changelog
+- **2026-06-04** — Phase 2 completed. Implemented `pipeline/transcriber.py`: ffmpeg
+  extracts a 16 kHz mono `audio.wav` into the job `work_dir`, then a cached (thread-safe)
+  faster-whisper `base`/int8 model transcribes it with `word_timestamps=True` into
+  `transcript.json` matching `sample_transcript.json`. Added config tunables
+  `WHISPER_BEAM_SIZE`, `WHISPER_VAD_FILTER`, `AUDIO_SAMPLE_RATE`. Added no-speech robustness
+  (VAD-empty → retry without VAD → valid empty transcript). Logged the
+  `[Phase 2 → Phase 3]` carry-forward (reuse `audio.wav` for librosa). Verified end-to-end:
+  tone clip → schema-valid empty transcript (no crash); real offline-TTS speech clip → 20
+  words with monotonic word timestamps; orchestrator ran transcription, wrote
+  `transcript.json`, and stopped cleanly at the Phase-3 scorer stub; `/health` still 200.
 - **2026-06-04** — Added a **Carry-forward decisions (cross-phase)** section + workflow
   rule (in `CLAUDE.md`) so decisions in one phase that affect later phases are tracked.
   Logged Phase 1's carry-forwards (minimal UI → Phase 6; stage contract + clean-stop →
