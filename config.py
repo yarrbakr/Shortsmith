@@ -104,6 +104,32 @@ class Config:
     # (OpenCV Haar cascade; stretch goal). Override with "1"/"true".
     FACE_DETECT = os.environ.get("AUTOSHORTS_FACE_DETECT", "0").lower() in {"1", "true", "yes"}
 
+    # --- Captions / Subtitles (Module 5) ----------------------------------
+    # Word-synced animated captions burned onto each clip + an SRT export.
+    # Style: one large word at a time, centered, with a quick pop-in scale
+    # (classic viral-shorts look). All env-overridable; no hardcoded paths.
+    CAPTION_ENABLED = os.environ.get("AUTOSHORTS_CAPTIONS", "1").lower() not in {"0", "false", "no"}
+    # moviepy 2.x TextClip needs a real font FILE. We bundle an OFL font so a
+    # fresh clone works offline on Windows + Ubuntu without a system font.
+    CAPTION_FONT: Path = _env_path(
+        "AUTOSHORTS_CAPTION_FONT", BASE_DIR / "assets" / "fonts" / "Anton-Regular.ttf"
+    )
+    CAPTION_FONT_SIZE = int(os.environ.get("AUTOSHORTS_CAPTION_FONT_SIZE", "120"))
+    CAPTION_COLOR = os.environ.get("AUTOSHORTS_CAPTION_COLOR", "white")
+    CAPTION_HIGHLIGHT_COLOR = os.environ.get("AUTOSHORTS_CAPTION_HIGHLIGHT", "#7C3AED")
+    CAPTION_STROKE_COLOR = os.environ.get("AUTOSHORTS_CAPTION_STROKE", "black")
+    CAPTION_STROKE_WIDTH = int(os.environ.get("AUTOSHORTS_CAPTION_STROKE_WIDTH", "8"))
+    # Vertical center of the caption as a fraction of height (0.72 = lower third).
+    CAPTION_POSITION_RATIO = float(os.environ.get("AUTOSHORTS_CAPTION_POSITION", "0.72"))
+    # Keep a word inside this fraction of the width; shrink the font if it overflows.
+    CAPTION_MAX_WIDTH_RATIO = float(os.environ.get("AUTOSHORTS_CAPTION_MAX_WIDTH", "0.9"))
+    CAPTION_UPPERCASE = os.environ.get("AUTOSHORTS_CAPTION_UPPERCASE", "1").lower() not in {"0", "false", "no"}
+    CAPTION_POP_DURATION = float(os.environ.get("AUTOSHORTS_CAPTION_POP", "0.12"))  # scale-in seconds
+    # ±tolerance used to hold a word on screen across tiny inter-word gaps (no flicker).
+    CAPTION_SYNC_TOLERANCE = float(os.environ.get("AUTOSHORTS_CAPTION_SYNC", "0.3"))
+    # Words per SRT cue (readable subtitle grouping).
+    SRT_MAX_WORDS_PER_LINE = int(os.environ.get("AUTOSHORTS_SRT_MAX_WORDS", "7"))
+
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("AUTOSHORTS_SECRET_KEY", "dev-key-change-me")
     HOST = os.environ.get("AUTOSHORTS_HOST", "127.0.0.1")

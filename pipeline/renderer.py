@@ -16,7 +16,7 @@ from pathlib import Path
 from moviepy import VideoFileClip
 
 from config import CONFIG
-from pipeline import effects
+from pipeline import captions, effects
 
 
 def _output_name(start: float, end: float) -> str:
@@ -64,6 +64,8 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
         final = effects.punch_in_zoom(vertical)
 
         out_path = out_dir / _output_name(start, end)
+        # Burn word-synced captions (best-effort) and export the sibling .srt.
+        final = captions.apply_captions(final, clip, out_dir, out_path)
         final.write_videofile(
             str(out_path),
             fps=CONFIG.FPS,

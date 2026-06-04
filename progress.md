@@ -24,7 +24,7 @@ vertical shorts with burned-in animated captions. Open-source.
 | 2 | Transcription | ✅ **Done** | 1 |
 | 3 | Scoring & Selection | ✅ **Done** | 2 (or sample_transcript.json) |
 | 4 | Rendering & Effects | ✅ **Done** | 3 |
-| 5 | Animated Captions & SRT | ⬜ Not started | 4 |
+| 5 | Animated Captions & SRT | ✅ **Done** | 4 |
 | 6 | Frontend & Integration | ⬜ Not started | 1–5 |
 
 Legend: ✅ Done · 🟡 In progress · ⬜ Not started
@@ -171,18 +171,48 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 ---
 
-## Phase 5 — Animated Captions & Subtitle System ⬜
+## Phase 5 — Animated Captions & Subtitle System ✅
 **Module 5.** **Depends on:** Phase 4.
 **Goal:** Burn word-synced animated captions onto the rendered clips + export SRT.
 
 **Deliverables:**
-- [ ] Caption overlay engine (moviepy TextClip — Option A/B decision in RESEARCH.md)
-- [ ] Word-level highlight/animation synced to timestamps (±0.3s)
-- [ ] Captions burned into the final video
-- [ ] SRT subtitle export per clip (`pysrt`)
-- [ ] Wired into the render stage
+- [x] Caption overlay engine (moviepy `TextClip`) — **Option B**, in `pipeline/captions.py`
+- [x] Word-level highlight/animation synced to timestamps (±0.3s hold tolerance)
+- [x] Captions burned into the final video
+- [x] SRT subtitle export per clip (`pysrt`)
+- [x] Wired into the render stage
 
-**Done when:** final clips have animated word-synced captions burned in + an `.srt` file.
+**Done when:** final clips have animated word-synced captions burned in + an `.srt` file. ✅
+
+**Notes:**
+- **Style = single-word pop** (Option B resolved): one large word at a time, centered in the
+  lower third (`CAPTION_POSITION_RATIO` 0.72), drawn in accent **#7C3AED** with a thick black
+  stroke, with an ease-out pop-in scale (`_pop_scale`, 0.7→1.0 over `CAPTION_POP_DURATION`).
+  Each word holds until the next word starts (no flicker); the last word lingers
+  `CAPTION_SYNC_TOLERANCE` (0.3s). Chose single active word over phrase-karaoke to avoid
+  per-word horizontal layout/wrapping while keeping full color control.
+- **Bundled font (cross-platform):** moviepy 2.x `TextClip(font, …)` needs a font *file path* —
+  no safe system default. Committed **Anton** (OFL, bold display) under `assets/fonts/`; path is
+  `CONFIG.CAPTION_FONT`, env-overridable via `AUTOSHORTS_CAPTION_FONT`. `assets/` is not gitignored
+  so a fresh clone renders captions offline.
+- **`pipeline/captions.py`** (new module, not in `effects.py`): `_local_words` offsets each clip's
+  source-timeline words by `clip["start"]` and clamps to `[0, duration]` (single source of truth for
+  both burn + SRT); `build_word_clips` makes positioned/timed pop-in `TextClip`s (shrinks font once if
+  a long word overflows `CAPTION_MAX_WIDTH_RATIO`); `write_srt` groups words into ≤`SRT_MAX_WORDS_PER_LINE`
+  cues (breaking on sentence punctuation) via `pysrt`; `apply_captions` composites + always writes the
+  sibling `.srt`.
+- **Robustness:** caption build is best-effort — disabled/empty words or a missing/broken font skip the
+  burn but still write the MP4 **and** an `.srt`; per-word `TextClip` failures are skipped. A job never
+  dies in this stage (mirrors the Phase-2/3 fallback pattern).
+- **No `app.py`/`orchestrator.py`/`renderer.render`-signature changes** — captions slot into the render
+  chain via one call before `write_videofile`. New `config.py` tunables (all env-overridable):
+  `CAPTION_ENABLED`, `CAPTION_FONT`, `CAPTION_FONT_SIZE`, `CAPTION_COLOR`, `CAPTION_HIGHLIGHT_COLOR`,
+  `CAPTION_STROKE_COLOR`/`_WIDTH`, `CAPTION_POSITION_RATIO`, `CAPTION_MAX_WIDTH_RATIO`, `CAPTION_UPPERCASE`,
+  `CAPTION_POP_DURATION`, `CAPTION_SYNC_TOLERANCE`, `SRT_MAX_WORDS_PER_LINE`.
+- Verified: `sample_transcript.json` segment → 25 local words (first @0.0, monotonic, clamped) → 5 SRT
+  cues; full render of a 20s synthetic source → 1080×1920 h264/aac/12.37s MP4 with ~18.5k accent-purple +
+  ~10k black-stroke caption pixels in the lower band, sibling `.srt` with cues. Robustness: empty words →
+  MP4 + 0-byte `.srt`; bad font path → MP4 + valid `.srt` (burn skipped), no error. `/health` still 200.
 
 ---
 
@@ -210,7 +240,8 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
-- Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B) — leaning B.
+- ~~Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B).~~
+  **Resolved (Phase 5):** Option B (moviepy `TextClip`), single-word pop, accent #7C3AED, bundled OFL font.
 - ~~Subject framing: center crop vs OpenCV face detection.~~ **Resolved (Phase 4):** center crop
   by default; optional Haar face detection behind `AUTOSHORTS_FACE_DETECT`.
 - ~~Default Whisper model size (`base` for now).~~ **Resolved (Phase 2):** `base`, env-overridable via `AUTOSHORTS_WHISPER_MODEL`.
@@ -257,7 +288,27 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   assume those dimensions. Output filename is `clip_<start*100, zero-padded>.mp4`; the SRT should
   share that stem.
 
+- **[Phase 5 → Phase 6] Each clip emits a sibling `.srt` in `out_dir`, sharing the MP4 stem.**
+  `renderer.render` now writes `clip_<start>.mp4` *and* `clip_<start>.srt` (clip-local timeline,
+  ≤7-word cues). It's already downloadable via `/download/<job_id>/<file>`, but the orchestrator's
+  `results` list only carries the MP4 name — **Phase 6 should surface the `.srt`** (download link /
+  transcript view) by deriving it from the MP4 name (swap suffix) rather than changing the stage
+  contract. A clip with no words still yields a valid (empty) `.srt`. Captions are burned in by
+  default and toggle off via `AUTOSHORTS_CAPTIONS=0`; the bundled font lives at
+  `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
+
 ## Changelog
+- **2026-06-05** — Phase 5 completed. Added `pipeline/captions.py` (caption engine + SRT) and a
+  bundled OFL font (`assets/fonts/Anton-Regular.ttf`). `apply_captions` offsets each clip's
+  source-timeline words to local time, burns one large accent-#7C3AED word at a time (centered lower
+  third, black stroke, ease-out pop-in, word held until the next) via moviepy `TextClip` composited
+  before `write_videofile`, and always writes a sibling `.srt` (`pysrt`, ≤7-word sentence-aware cues).
+  Resolved the Caption A/B open decision → **Option B**. Added `config.py` caption tunables (font/size/
+  colors/stroke/position/width/uppercase/pop/sync/srt-words, all env-overridable). Updated `effects.py`
+  docstring + `RESEARCH.md`. No `app.py`/`orchestrator.py`/`render`-signature changes. Logged the
+  `[Phase 5 → Phase 6]` carry-forward (surface the `.srt` in the UI). Verified end-to-end: 1080×1920
+  h264/aac MP4 with burned captions + SRT cues; robustness for empty words (empty `.srt`) and a bad font
+  path (burn skipped, MP4 + `.srt` still produced); `/health` 200.
 - **2026-06-04** — Phase 4 completed. Implemented `pipeline/renderer.py` and `pipeline/effects.py`.
   `effects.reframe_to_vertical` scale-covers + crops to 1080×1920 (moviepy `resized`/`cropped`, so
   `size` stays correct), biased by an optional `focus_x_ratio`; `effects.punch_in_zoom` is a

@@ -13,7 +13,8 @@ Design (see RESEARCH.md): the reframe uses moviepy's own ``resized``/``cropped``
 effects so the clip's declared ``size`` stays correct for the encoder. The zoom
 is a custom cv2 frame transform whose output dimensions never change, so it is
 safe to chain after the reframe without confusing the writer. Word-synced
-animated captions (Phase 5) will live here too.
+animated captions (Phase 5) live in ``pipeline/captions.py`` (they need text
+rendering + SRT file I/O, kept separate from these frame transforms).
 """
 
 from __future__ import annotations

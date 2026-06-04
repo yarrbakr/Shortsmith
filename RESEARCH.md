@@ -21,8 +21,25 @@ Running log of why we chose each approach. Filled in as modules are built.
 ## Captions (Module 5)
 - **Option A** — ffmpeg `drawtext`: fast, but per-word color animation is hard.
 - **Option B** — moviepy `TextClip` per word: full control over highlight/color,
-  slower render. Leaning B for the animated look.
-- Decision: TBD when Module 5 starts.
+  slower render.
+- **Decision: Option B (moviepy `TextClip`).** Style = one large word at a time,
+  centered in the lower third, drawn in accent **#7C3AED** with a thick black stroke,
+  with a quick ease-out pop-in scale (classic viral-shorts look). Each word holds on
+  screen until the next word starts (no flicker). Picked B because it gives full
+  per-word color control with simple, deterministic, CPU-cheap compositing — a single
+  active word avoids per-word horizontal layout/wrapping math.
+- **Bundled font (important):** moviepy 2.x `TextClip(font, ...)` requires a font
+  *file path* — there is no safe cross-platform system-font default. We commit an
+  OFL-licensed font (**Anton**, single-weight bold display) under `assets/fonts/` so a
+  fresh clone renders captions offline on Windows + Ubuntu. Overridable via
+  `AUTOSHORTS_CAPTION_FONT`.
+- **SRT export** (`pysrt`): words are grouped into readable cues (≤7 words, breaking on
+  sentence punctuation) on the clip-local timeline, saved next to the MP4 sharing its
+  stem. Always written, even when the caption burn is disabled/empty.
+- **Robustness:** caption building is best-effort — a missing/broken font or empty word
+  list skips the burn but still produces the MP4 and an `.srt`; a job never dies here.
+- Caption engine lives in `pipeline/captions.py` (text rendering + SRT I/O), kept out of
+  `pipeline/effects.py` which stays focused on frame transforms.
 
 ## Effects (Module 4)
 - Punch-in zoom 1.0x -> 1.15x over ~1.5s via frame transform (cv2.resize + center crop).
