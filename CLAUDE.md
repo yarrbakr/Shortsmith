@@ -17,7 +17,12 @@ AutoShorts AI — a 100% local, free, CPU-only web app that turns long videos in
    dependencies (earlier phases) are actually done before building on them.
 2. **After completing a task**, update `progress.md` immediately — tick the relevant
    deliverable checkboxes, flip the phase status (⬜ → 🟡 → ✅), and add a changelog line.
-3. **After completing a whole phase**, push to GitHub:
+3. **Whenever a decision in one phase affects a later phase** (you build something a later
+   phase will reuse/replace, lock in a contract others depend on, or resolve an open
+   decision), record it in the **"Carry-forward decisions (cross-phase)"** section of
+   `progress.md` *and* add a short note under the affected phase's section. This keeps
+   future phases from rebuilding existing work or breaking a contract.
+4. **After completing a whole phase**, push to GitHub:
    `git add -A && git commit -m "Phase N: <summary>" && git push`
 
 ## Hard rules (do not violate)

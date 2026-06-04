@@ -139,6 +139,11 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 **Module 6.** **Depends on:** Phases 1–5.
 **Goal:** Polished UI and a fully integrated, end-to-end working app.
 
+> **Carry-forward from Phase 1:** a *minimal* upload form + `/status` polling already
+> exists (`templates/index.html`, `static/app.js`, `static/style.css`, dark `#0a0a0f` /
+> `#7C3AED` palette). Phase 6 **expands/replaces** it into the full UI — this is not a
+> fresh build. See the Carry-forward decisions log below.
+
 **Deliverables:**
 - [ ] `templates/index.html` — full UI (dark theme `#0a0a0f`, accent `#7C3AED`)
 - [ ] `static/style.css` — responsive, mobile-friendly
@@ -152,11 +157,38 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 ---
 
 ## Open decisions (resolve as we go)
+> Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
+> below if it affects a later phase.
 - Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B) — leaning B.
 - Subject framing: center crop vs OpenCV face detection.
 - Default Whisper model size (`base` for now).
 
+## Carry-forward decisions (cross-phase)
+> A running log of decisions made in one phase that constrain or pre-do work in a later
+> phase. **Rule:** whenever a phase makes a choice that affects a future phase, add a row
+> here *and* a short note under that future phase's section. Format: `[made in → affects]`.
+
+- **[Phase 1 → Phase 6] Minimal UI is a starting point, not throwaway.** `index.html`,
+  `app.js`, `style.css` already do upload + live `/status` polling + a results list with
+  download links, using the Phase 6 palette. Phase 6 builds *on top of* these, not from scratch.
+- **[Phase 1 → Phases 2–5] Pipeline stage contract is fixed.** Stages are plain functions
+  with stable signatures the orchestrator calls uniformly:
+  `transcriber.transcribe(video_path, work_dir) -> dict`,
+  `scorer.score(transcript, video_path) -> list[dict]`,
+  `selector.select(scored, top_n) -> list[dict]`,
+  `renderer.render(video_path, clip, out_dir) -> Path`.
+  Implementing a phase = filling the stub body; **do not change these signatures** (the
+  orchestrator and later phases depend on them).
+- **[Phase 1 → Phases 2–5] Unimplemented stages raise `NotImplementedError`.** The
+  orchestrator catches it and stops the job cleanly with `status="error"` + a message.
+  When you implement a stage, replace the `raise` with a real return value of the
+  contracted type — no orchestrator change needed.
+
 ## Changelog
+- **2026-06-04** — Added a **Carry-forward decisions (cross-phase)** section + workflow
+  rule (in `CLAUDE.md`) so decisions in one phase that affect later phases are tracked.
+  Logged Phase 1's carry-forwards (minimal UI → Phase 6; stage contract + clean-stop →
+  Phases 2–5) and noted the existing minimal UI under Phase 6.
 - **2026-06-04** — Phase 1 completed. Added `pipeline/jobs.py` (thread-safe in-memory
   job registry) and `pipeline/orchestrator.py` (background stage runner). Wired
   `/`, `/upload`, `/status/<id>`, `/results/<id>`, `/download/<id>/<file>` routes in
