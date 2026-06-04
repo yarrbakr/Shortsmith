@@ -20,7 +20,7 @@ vertical shorts with burned-in animated captions. Open-source.
 | Phase | Module | Status | Depends on |
 |------|--------|--------|-----------|
 | 0 | Scaffold & Setup | ✅ **Done** | — |
-| 1 | Backend & Upload | ⬜ Not started | 0 |
+| 1 | Backend & Upload | ✅ **Done** | 0 |
 | 2 | Transcription | ⬜ Not started | 1 |
 | 3 | Scoring & Selection | ⬜ Not started | 2 (or sample_transcript.json) |
 | 4 | Rendering & Effects | ⬜ Not started | 3 |
@@ -49,21 +49,21 @@ Legend: ✅ Done · 🟡 In progress · ⬜ Not started
 
 ---
 
-## Phase 1 — Backend & Upload Management ⬜
+## Phase 1 — Backend & Upload Management ✅
 **Module 1.** **Depends on:** Phase 0.
 **Goal:** Accept a video, validate + store it, create a job, and expose the
 processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 **Deliverables:**
-- [ ] Upload page (basic form — full UI is Phase 6)
-- [ ] `POST /upload` — validate extension + size, save to `uploads/` with safe unique name
-- [ ] `GET /status/<job_id>` — live progress as JSON
-- [ ] `GET /results/<job_id>` — finished clips for a job
-- [ ] `GET /download/<job_id>/<file>` — download a generated short
-- [ ] Job manager — in-memory job registry (id, status, progress %, message, error, results)
-- [ ] Background-thread processing so the request doesn't block
-- [ ] Stage orchestrator: transcribe → score → select → render (calls pipeline interface)
-- [ ] Defined pipeline function signatures (stable contract for Phases 2–5)
+- [x] Upload page (basic form — full UI is Phase 6)
+- [x] `POST /upload` — validate extension + size, save to `uploads/` with safe unique name
+- [x] `GET /status/<job_id>` — live progress as JSON
+- [x] `GET /results/<job_id>` — finished clips for a job
+- [x] `GET /download/<job_id>/<file>` — download a generated short (path-traversal guarded)
+- [x] Job manager — in-memory job registry (id, status, progress %, message, error, results)
+- [x] Background-thread processing so the request doesn't block
+- [x] Stage orchestrator: transcribe → score → select → render (calls pipeline interface)
+- [x] Defined pipeline function signatures (stable contract for Phases 2–5)
 
 **Done when:** uploading a small `.mp4` validates + saves it, creates a job, and
 `/status/<id>` reports progress (stopping cleanly at the first unimplemented stage).
@@ -157,4 +157,11 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 - Default Whisper model size (`base` for now).
 
 ## Changelog
+- **2026-06-04** — Phase 1 completed. Added `pipeline/jobs.py` (thread-safe in-memory
+  job registry) and `pipeline/orchestrator.py` (background stage runner). Wired
+  `/`, `/upload`, `/status/<id>`, `/results/<id>`, `/download/<id>/<file>` routes in
+  `app.py`. Defined stable pipeline signatures (`transcribe/score/select/render`) as
+  stubs raising `NotImplementedError`. Minimal upload UI with live status polling.
+  Verified: upload validates + saves, job runs, stops cleanly at transcription; bad
+  ext → 400, unknown job → 404, path traversal → 404.
 - **2026-06-03** — Phase 0 completed and pushed. Environment fixed to Python 3.12.

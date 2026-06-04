@@ -1,1 +1,80 @@
-/* Module 6 — Styles. Built in Phase 6. Dark theme #0a0a0f, accent #7C3AED. */
+/* Module 1 — minimal styles. Full UI in Phase 6. Dark theme #0a0a0f, accent #7C3AED. */
+:root {
+  --bg: #0a0a0f;
+  --card: #14141c;
+  --accent: #7c3aed;
+  --text: #e8e8ef;
+  --muted: #9a9ab0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.card {
+  width: min(90vw, 480px);
+  padding: 2rem;
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+h1 { margin: 0 0 0.25rem; font-size: 1.6rem; }
+.accent { color: var(--accent); }
+.subtitle { margin: 0 0 1.5rem; color: var(--muted); font-size: 0.9rem; }
+
+form { display: flex; flex-direction: column; gap: 0.75rem; }
+
+input[type="file"] {
+  padding: 0.75rem;
+  border: 1px dashed #3a3a4a;
+  border-radius: 8px;
+  background: #0f0f17;
+  color: var(--text);
+}
+
+button {
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.6; cursor: default; }
+
+.status { margin-top: 1.5rem; }
+.hidden { display: none; }
+
+.bar {
+  height: 10px;
+  background: #0f0f17;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.status-text {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.results { margin: 0.75rem 0 0; padding-left: 1.1rem; }
+.results a { color: var(--accent); }

@@ -1,1 +1,29 @@
-<!-- Module 6 — Frontend. Built in Phase 6. -->
+<!-- Module 1 — minimal upload + progress page. Full UI arrives in Phase 6. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoShorts AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="card">
+    <h1>AutoShorts <span class="accent">AI</span></h1>
+    <p class="subtitle">Turn a long video into 9:16 shorts. 100% local.</p>
+
+    <form id="upload-form">
+      <input type="file" id="video-input" name="video" accept="video/*" required />
+      <button type="submit" id="submit-btn">Upload &amp; Process</button>
+    </form>
+
+    <section id="status" class="status hidden">
+      <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
+      <p id="status-text" class="status-text"></p>
+      <ul id="results" class="results"></ul>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
