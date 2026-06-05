@@ -72,7 +72,10 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
             codec=CONFIG.VIDEO_CODEC,
             audio_codec=CONFIG.AUDIO_CODEC,
             preset=CONFIG.RENDER_PRESET,
-            ffmpeg_params=["-crf", str(CONFIG.RENDER_CRF)],
+            # +faststart moves the moov atom to the front so browsers can stream
+            # the clip inline (and decode its audio) without first fetching the
+            # tail of the file. Harmless for downloaded playback.
+            ffmpeg_params=["-crf", str(CONFIG.RENDER_CRF), "-movflags", "+faststart"],
             threads=os.cpu_count() or 2,
             logger=None,
         )

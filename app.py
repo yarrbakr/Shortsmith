@@ -97,7 +97,12 @@ def create_app() -> Flask:
         target = (job_dir / safe_name).resolve()
         if job_dir not in target.parents or not target.is_file():
             abort(404)
-        return send_from_directory(job_dir, safe_name, as_attachment=True)
+        # `?inline=1` serves the file without forcing a download so the UI can
+        # play clips in a <video> element and read an .srt in-browser. Werkzeug
+        # still honors HTTP range requests, so video seeking works. Default
+        # (no param) keeps the download-as-attachment behavior.
+        inline = request.args.get("inline", "").lower() in {"1", "true", "yes"}
+        return send_from_directory(job_dir, safe_name, as_attachment=not inline)
 
     @app.errorhandler(413)
     def too_large(_err):

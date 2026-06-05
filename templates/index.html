@@ -1,28 +1,61 @@
-<!-- Module 1 — minimal upload + progress page. Full UI arrives in Phase 6. -->
+<!-- Module 6 — full UI: upload, live progress, results grid with inline previews. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoShorts AI</title>
+  <title>AutoShorts AI — local video → 9:16 shorts</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <main class="card">
-    <h1>AutoShorts <span class="accent">AI</span></h1>
-    <p class="subtitle">Turn a long video into 9:16 shorts. 100% local.</p>
+  <div class="page">
+    <header class="hero">
+      <h1>AutoShorts <span class="accent">AI</span></h1>
+      <p class="tagline">Turn a long video into 9:16 shorts with word-synced captions.</p>
+      <p class="badge">100% local · free · CPU-only</p>
+    </header>
 
-    <form id="upload-form">
-      <input type="file" id="video-input" name="video" accept="video/*" required />
-      <button type="submit" id="submit-btn">Upload &amp; Process</button>
-    </form>
+    <main>
+      <!-- Upload card -->
+      <section class="card upload-card" id="upload-card">
+        <form id="upload-form">
+          <label id="dropzone" class="dropzone" for="video-input">
+            <input type="file" id="video-input" name="video" accept="video/*" hidden />
+            <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 16V4m0 0L8 8m4-4 4 4" />
+              <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+            <p class="dz-title">Drop a video here, or <span class="accent">browse</span></p>
+            <p class="dz-hint" id="dz-hint">MP4, MOV, MKV, WEBM, AVI, M4V · up to 1&nbsp;GB</p>
+          </label>
+          <button type="submit" id="submit-btn" disabled>Upload &amp; Process</button>
+        </form>
+      </section>
 
-    <section id="status" class="status hidden">
-      <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
-      <p id="status-text" class="status-text"></p>
-      <ul id="results" class="results"></ul>
-    </section>
-  </main>
+      <!-- Progress panel -->
+      <section class="card status-card hidden" id="status">
+        <div class="stages" id="stages">
+          <span class="stage" data-stage="transcribe">Transcribe</span>
+          <span class="stage" data-stage="score">Score</span>
+          <span class="stage" data-stage="select">Select</span>
+          <span class="stage" data-stage="render">Render</span>
+        </div>
+        <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
+        <p id="status-text" class="status-text"></p>
+      </section>
+
+      <!-- Results -->
+      <section class="results-section hidden" id="results-section">
+        <h2 class="results-heading"><span id="results-count">0</span> short<span id="results-plural">s</span> ready</h2>
+        <div id="results" class="results-grid"></div>
+        <button type="button" id="reset-btn" class="ghost-btn">Process another video</button>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>AutoShorts AI — open-source OpusClip alternative</span>
+    </footer>
+  </div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

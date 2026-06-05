@@ -45,6 +45,24 @@ Running log of why we chose each approach. Filled in as modules are built.
 - Punch-in zoom 1.0x -> 1.15x over ~1.5s via frame transform (cv2.resize + center crop).
 - 9:16 crop: detect/center subject; optional OpenCV face detection (stretch).
 
+## Frontend & Integration (Module 6)
+- **Progress: polling, not SSE.** A 1-second `fetch('/status/<id>')` loop drives the
+  UI. It's already proven from Phase 1, needs no new server deps or threading, and
+  fits the in-memory job model — SSE/WebSockets would add complexity for no real gain
+  at this single-user, local scale.
+- **Inline previews via one query param.** The `/download` route gained an optional
+  `?inline=1` that serves the file with `as_attachment=False`, so the results grid can
+  play clips in a `<video>` element (Werkzeug still answers HTTP range requests, so
+  seeking works) and read an `.srt` in-browser. The default (no param) keeps the
+  download-as-attachment behavior. No new routes, no change to the pipeline contract.
+- **SRT surfaced client-side.** Per the Phase-5 carry-forward, each clip's sibling
+  `.srt` shares the MP4 stem, so the UI derives its name in JS (`.mp4` → `.srt`) and
+  links/loads it through the existing download route — the orchestrator's `results`
+  payload stays unchanged.
+- **Built on the existing UI, not a rewrite.** The Phase-1 dark theme (`#0a0a0f` /
+  `#7C3AED`) and upload+poll flow were extended into a dropzone, staged progress chips,
+  and a responsive CSS-grid results layout — no framework, plain HTML/CSS/JS.
+
 ## Cross-platform notes
 - All paths via `pathlib` + `config.py`; no `\\` or `/` hardcoding.
 - ffmpeg is a system dependency on both Windows and Ubuntu.
