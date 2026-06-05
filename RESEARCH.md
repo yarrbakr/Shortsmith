@@ -44,6 +44,16 @@ Running log of why we chose each approach. Filled in as modules are built.
 ## Effects (Module 4)
 - Punch-in zoom 1.0x -> 1.15x over ~1.5s via frame transform (cv2.resize + center crop).
 - 9:16 crop: detect/center subject; optional OpenCV face detection (stretch).
+- **Fades:** moviepy `vfx.FadeIn/FadeOut` for video + `afx.AudioFadeIn/FadeOut` for audio, applied
+  to the final composite. Capped at half the clip duration so short clips don't fade to permanent
+  black. On by default (subtle 0.4s) — a softer in/out than a hard cut, the standard shorts look.
+- **Watermark/logo:** an `ImageClip` PNG composited into a configurable corner (scaled to a width
+  ratio of the 1080px canvas, with margin + opacity; the PNG's alpha is respected). Off by default
+  with a bundled `assets/watermark.png` sample so it's testable. Applied *after* captions so the
+  logo sits on top; fades run last so they cover the watermark too.
+- **Order in the render chain:** `subclip → reframe → zoom → captions → watermark → fades → write`.
+  Each step preserves audio and (watermark/fades) is a best-effort no-op when disabled, so a render
+  never depends on them. Export uses `-movflags +faststart` for web-streamable MP4s.
 
 ## Frontend & Integration (Module 6)
 - **Progress: polling, not SSE.** A 1-second `fetch('/status/<id>')` loop drives the

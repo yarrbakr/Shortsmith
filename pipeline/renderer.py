@@ -66,6 +66,11 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
         out_path = out_dir / _output_name(start, end)
         # Burn word-synced captions (best-effort) and export the sibling .srt.
         final = captions.apply_captions(final, clip, out_dir, out_path)
+        # Logo/watermark on top of everything (incl. captions), then fade the
+        # whole composite in/out at the boundaries. Both are best-effort no-ops
+        # when disabled, so the render never depends on them.
+        final = effects.apply_watermark(final)
+        final = effects.apply_fades(final)
         final.write_videofile(
             str(out_path),
             fps=CONFIG.FPS,

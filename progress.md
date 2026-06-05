@@ -142,6 +142,8 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 **Deliverables:**
 - [x] `renderer.py` — cut clip, reframe to 9:16 (1080×1920), export MP4
 - [x] `effects.py` — punch-in zoom (1.0x → 1.15x over ~1.5s)
+- [x] Fade in/out at clip boundaries (video + audio) — `effects.apply_fades`
+- [x] Logo/watermark overlay (configurable corner/opacity/size) — `effects.apply_watermark`
 - [x] Center/subject crop (optional OpenCV face detection — stretch, off by default)
 - [x] Output clips saved to `shorts_output/<job_id>/`
 - [x] Wired into the job orchestrator (real "rendering" stage)
@@ -162,6 +164,17 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   horizontal crop toward the largest detected face; falls back to center when no face/cascade.
 - New `config.py` tunables (all env-overridable): `VIDEO_CODEC` (libx264), `AUDIO_CODEC` (aac),
   `RENDER_PRESET` (medium), `RENDER_CRF` (20), `FACE_DETECT` (off).
+- **Fades + watermark (added 2026-06-05).** `apply_fades` fades each clip in/out (video via
+  `vfx.FadeIn/FadeOut`, audio via `afx.AudioFadeIn/FadeOut`), capped at half-duration on short
+  clips; on by default (`FADE_DURATION` 0.4s). `apply_watermark` composites a logo PNG into a
+  configurable corner (scaled to `WATERMARK_WIDTH_RATIO` of width, `WATERMARK_OPACITY`, respects
+  the PNG's alpha); off by default with a bundled `assets/watermark.png` sample. Both are
+  best-effort no-ops when disabled and preserve audio. In the render chain they run **after**
+  captions (watermark on top of everything) and **last** (fades over the whole composite). New
+  tunables: `FADE_ENABLED`/`FADE_DURATION`, `WATERMARK_ENABLED`/`_PATH`/`_POSITION`/`_OPACITY`/
+  `_WIDTH`/`_MARGIN`. Also added `-movflags +faststart` to the export for web-streamable MP4s.
+  Verified: watermark lands top-right (clean center), fades ramp brightness low→full→low, and a
+  full render keeps audio + faststart.
 - No `app.py`/`orchestrator.py` changes — the `render(video_path, clip, out_dir)` stage contract
   was already wired; this just fills the stub body.
 - Verified: 20s 1280×720 test source → clip `[3.0, 16.5]` rendered to a 1080×1920 h264/30fps MP4,
@@ -333,6 +346,13 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
 
 ## Changelog
+- **2026-06-05** — Module 4 follow-up: added **fade in/out** (`effects.apply_fades`, video+audio,
+  on by default) and **logo/watermark overlay** (`effects.apply_watermark`, configurable corner/
+  opacity/size, off by default with a bundled `assets/watermark.png`). Wired both into
+  `renderer.render` after captions (watermark on top) and last (fades over the composite); both
+  best-effort + audio-preserving. Added `config.py` tunables (`FADE_*`, `WATERMARK_*`). Verified
+  fades (low→full→low brightness), watermark placement (top-right, clean center), and a full
+  render keeping audio + faststart. Updated Phase 4 deliverables/notes + `RESEARCH.md`.
 - **2026-06-05** — Phase 6 manual testing. Generated a local TTS-narrated test video and ran
   the full UI end-to-end (3 shorts produced, captions + SRT + downloads all working, audio
   present in the downloaded MP4s). Added `-movflags +faststart` to `renderer.render` for

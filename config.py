@@ -104,6 +104,23 @@ class Config:
     # (OpenCV Haar cascade; stretch goal). Override with "1"/"true".
     FACE_DETECT = os.environ.get("AUTOSHORTS_FACE_DETECT", "0").lower() in {"1", "true", "yes"}
 
+    # Fade in/out at the clip boundaries (video + audio), for a smoother,
+    # more professional in/out than a hard cut. On by default; short and subtle.
+    FADE_ENABLED = os.environ.get("AUTOSHORTS_FADE", "1").lower() not in {"0", "false", "no"}
+    FADE_DURATION = float(os.environ.get("AUTOSHORTS_FADE_DURATION", "0.4"))  # seconds, each end
+
+    # Logo / watermark overlay (branding). Off by default; supply a PNG (ideally
+    # with transparency) and flip it on. A sample is bundled at assets/watermark.png.
+    WATERMARK_ENABLED = os.environ.get("AUTOSHORTS_WATERMARK", "0").lower() in {"1", "true", "yes"}
+    WATERMARK_PATH: Path = _env_path(
+        "AUTOSHORTS_WATERMARK_PATH", BASE_DIR / "assets" / "watermark.png"
+    )
+    # Corner placement: top-left / top-right / bottom-left / bottom-right / center.
+    WATERMARK_POSITION = os.environ.get("AUTOSHORTS_WATERMARK_POSITION", "top-right").lower()
+    WATERMARK_OPACITY = float(os.environ.get("AUTOSHORTS_WATERMARK_OPACITY", "0.85"))
+    WATERMARK_WIDTH_RATIO = float(os.environ.get("AUTOSHORTS_WATERMARK_WIDTH", "0.22"))  # of TARGET_WIDTH
+    WATERMARK_MARGIN = int(os.environ.get("AUTOSHORTS_WATERMARK_MARGIN", "40"))  # px from edges
+
     # --- Captions / Subtitles (Module 5) ----------------------------------
     # Word-synced animated captions burned onto each clip + an SRT export.
     # Style: one large word at a time, centered, with a quick pop-in scale

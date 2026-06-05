@@ -6,6 +6,9 @@ Video effects applied during rendering:
     optionally biasing the horizontal crop toward a detected face.
   * ``punch_in_zoom`` — a constant-size frame transform that eases from
     ``ZOOM_START`` to ``ZOOM_END`` over ``ZOOM_DURATION`` seconds, then holds.
+  * ``apply_fades`` — fade in/out at the clip boundaries (video + audio) for a
+    smoother start/end than a hard cut.
+  * ``apply_watermark`` — composite a logo/watermark PNG into a chosen corner.
   * ``detect_focus_x_ratio`` — OpenCV face detection (stretch) used to pick the
     crop's horizontal focus point.
 
@@ -20,6 +23,7 @@ rendering + SRT file I/O, kept separate from these frame transforms).
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -88,6 +92,80 @@ def punch_in_zoom(clip):
         return resized[y0:y0 + frame_h, x0:x0 + frame_w]
 
     return clip.transform(zoom)
+
+
+def apply_fades(clip):
+    """Fade the clip in and out at both ends (video + audio).
+
+    Best-effort and config-gated: returns ``clip`` unchanged when fades are
+    disabled, the duration is non-positive, or the clip has no duration. On very
+    short clips the fade is capped at half the duration so the in/out don't
+    overlap into a permanently-dark clip. Audio (when present) is faded too.
+    """
+    if not CONFIG.FADE_ENABLED:
+        return clip
+    if clip.duration is None or CONFIG.FADE_DURATION <= 0:
+        return clip
+
+    fade = min(CONFIG.FADE_DURATION, clip.duration / 2.0)
+    if fade <= 0:
+        return clip
+
+    from moviepy import afx, vfx
+
+    clip = clip.with_effects([vfx.FadeIn(fade), vfx.FadeOut(fade)])
+    if clip.audio is not None:
+        faded_audio = clip.audio.with_effects(
+            [afx.AudioFadeIn(fade), afx.AudioFadeOut(fade)]
+        )
+        clip = clip.with_audio(faded_audio)
+    return clip
+
+
+def _watermark_position(logo_w: int, logo_h: int) -> tuple:
+    """Pixel ``(x, y)`` for the watermark given the configured corner + margin."""
+    margin = CONFIG.WATERMARK_MARGIN
+    target_w, target_h = CONFIG.TARGET_WIDTH, CONFIG.TARGET_HEIGHT
+    pos = CONFIG.WATERMARK_POSITION
+    if pos == "center":
+        return ("center", "center")
+    x = margin if "left" in pos else target_w - logo_w - margin
+    y = margin if "top" in pos else target_h - logo_h - margin
+    return (int(x), int(y))
+
+
+def apply_watermark(clip):
+    """Composite the configured logo/watermark PNG onto ``clip``.
+
+    Best-effort and config-gated: returns ``clip`` unchanged when the watermark
+    is disabled or the file is missing/unreadable. The logo is scaled to
+    ``WATERMARK_WIDTH_RATIO`` of the target width, placed in the configured
+    corner with ``WATERMARK_MARGIN`` padding, and drawn at ``WATERMARK_OPACITY``.
+    A PNG's own alpha channel is respected. Audio is preserved.
+    """
+    if not CONFIG.WATERMARK_ENABLED:
+        return clip
+    if not Path(CONFIG.WATERMARK_PATH).is_file():
+        return clip
+
+    try:
+        from moviepy import CompositeVideoClip, ImageClip
+
+        logo = ImageClip(str(CONFIG.WATERMARK_PATH))
+        target_logo_w = int(CONFIG.WATERMARK_WIDTH_RATIO * CONFIG.TARGET_WIDTH)
+        if logo.w and target_logo_w > 0:
+            logo = logo.resized(width=target_logo_w)
+        logo = (
+            logo.with_duration(clip.duration)
+            .with_opacity(CONFIG.WATERMARK_OPACITY)
+            .with_position(_watermark_position(logo.w, logo.h))
+        )
+        out = CompositeVideoClip([clip, logo]).with_duration(clip.duration)
+        if clip.audio is not None:
+            out = out.with_audio(clip.audio)
+        return out
+    except Exception:  # noqa: BLE001 - watermark is best-effort; keep the render
+        return clip
 
 
 _FACE_CASCADE = None
