@@ -1,4 +1,4 @@
-# AutoShorts AI — all dependencies are free, local, CPU-only.
+# Shortsmith — all dependencies are free, local, CPU-only.
 # Python 3.10+
 
 # Web server (Module 1)

@@ -112,7 +112,7 @@ def create_app() -> Flask:
 
     @app.route("/health")
     def health():
-        return {"status": "ok", "service": "autoshorts"}
+        return {"status": "ok", "service": "shortsmith"}
 
     return app
 

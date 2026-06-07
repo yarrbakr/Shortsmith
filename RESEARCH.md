@@ -32,7 +32,7 @@ Running log of why we chose each approach. Filled in as modules are built.
   *file path* — there is no safe cross-platform system-font default. We commit an
   OFL-licensed font (**Anton**, single-weight bold display) under `assets/fonts/` so a
   fresh clone renders captions offline on Windows + Ubuntu. Overridable via
-  `AUTOSHORTS_CAPTION_FONT`.
+  `SHORTSMITH_CAPTION_FONT`.
 - **SRT export** (`pysrt`): words are grouped into readable cues (≤7 words, breaking on
   sentence punctuation) on the clip-local timeline, saved next to the MP4 sharing its
   stem. Always written, even when the caption burn is disabled/empty.

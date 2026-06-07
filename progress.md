@@ -1,4 +1,4 @@
-# AutoShorts AI — Project Progress Tracker
+# Shortsmith — Project Progress Tracker
 
 > **Purpose:** A single source of truth for where the project stands, so progress
 > isn't lost across chats/sessions. Update this file at the end of every phase.
@@ -160,7 +160,7 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   same dimensions — so chaining it after the reframe never changes `clip.size`. This is *why*
   the reframe uses moviepy effects (size-tracking) and the zoom uses a raw frame transform.
 - **Subject framing resolved:** center crop is the default (fast, deterministic). Optional
-  Haar-cascade face detection (`AUTOSHORTS_FACE_DETECT=1`) samples 3 frames and biases the
+  Haar-cascade face detection (`SHORTSMITH_FACE_DETECT=1`) samples 3 frames and biases the
   horizontal crop toward the largest detected face; falls back to center when no face/cascade.
 - New `config.py` tunables (all env-overridable): `VIDEO_CODEC` (libx264), `AUDIO_CODEC` (aac),
   `RENDER_PRESET` (medium), `RENDER_CRF` (20), `FACE_DETECT` (off).
@@ -206,7 +206,7 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   per-word horizontal layout/wrapping while keeping full color control.
 - **Bundled font (cross-platform):** moviepy 2.x `TextClip(font, …)` needs a font *file path* —
   no safe system default. Committed **Anton** (OFL, bold display) under `assets/fonts/`; path is
-  `CONFIG.CAPTION_FONT`, env-overridable via `AUTOSHORTS_CAPTION_FONT`. `assets/` is not gitignored
+  `CONFIG.CAPTION_FONT`, env-overridable via `SHORTSMITH_CAPTION_FONT`. `assets/` is not gitignored
   so a fresh clone renders captions offline.
 - **`pipeline/captions.py`** (new module, not in `effects.py`): `_local_words` offsets each clip's
   source-timeline words by `clip["start"]` and clamps to `[0, duration]` (single source of truth for
@@ -291,8 +291,8 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 - ~~Caption rendering: ffmpeg `drawtext` (Option A) vs moviepy `TextClip` per-word (Option B).~~
   **Resolved (Phase 5):** Option B (moviepy `TextClip`), single-word pop, accent #7C3AED, bundled OFL font.
 - ~~Subject framing: center crop vs OpenCV face detection.~~ **Resolved (Phase 4):** center crop
-  by default; optional Haar face detection behind `AUTOSHORTS_FACE_DETECT`.
-- ~~Default Whisper model size (`base` for now).~~ **Resolved (Phase 2):** `base`, env-overridable via `AUTOSHORTS_WHISPER_MODEL`.
+  by default; optional Haar face detection behind `SHORTSMITH_FACE_DETECT`.
+- ~~Default Whisper model size (`base` for now).~~ **Resolved (Phase 2):** `base`, env-overridable via `SHORTSMITH_WHISPER_MODEL`.
 
 ## Carry-forward decisions (cross-phase)
 > A running log of decisions made in one phase that constrain or pre-do work in a later
@@ -342,10 +342,16 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `results` list only carries the MP4 name — **Phase 6 should surface the `.srt`** (download link /
   transcript view) by deriving it from the MP4 name (swap suffix) rather than changing the stage
   contract. A clip with no words still yields a valid (empty) `.srt`. Captions are burned in by
-  default and toggle off via `AUTOSHORTS_CAPTIONS=0`; the bundled font lives at
+  default and toggle off via `SHORTSMITH_CAPTIONS=0`; the bundled font lives at
   `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
 
 ## Changelog
+- **2026-06-07** — **Project renamed `AutoShorts AI` → `Shortsmith`.** Full rebrand: display
+  name/title/footer, `LICENSE` copyright, README + CLAUDE.md + RESEARCH.md docs, `/health`
+  service id (`shortsmith`), and the env-var prefix `AUTOSHORTS_*` → `SHORTSMITH_*` across
+  `config.py`. Softened the "OpusClip/2short.ai clone" framing to "open-source, local-first
+  alternative." Verified `config` imports and `/health` returns `{"service":"shortsmith"}`.
+  (Folder + GitHub repo rename handled manually by the owner.)
 - **2026-06-05** — Module 4 follow-up: added **fade in/out** (`effects.apply_fades`, video+audio,
   on by default) and **logo/watermark overlay** (`effects.apply_watermark`, configurable corner/
   opacity/size, off by default with a bundled `assets/watermark.png`). Wired both into

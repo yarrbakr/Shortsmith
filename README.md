@@ -1,8 +1,9 @@
-# AutoShorts AI
+# Shortsmith
 
 Turn long videos into short, vertical (9:16) clips with burned-in animated
-captions — **100% local, free, and CPU-only**. An open-source alternative to
-OpusClip / 2short.ai / Vidyo.ai. No cloud, no API keys, no subscriptions.
+captions — **100% local, free, and CPU-only**. An open-source, local-first
+alternative to cloud clip tools like OpusClip. No cloud, no API keys, no
+subscriptions.
 
 ## Features
 - Upload a long video and get the best short clips automatically
@@ -61,17 +62,17 @@ model once, then works fully offline.
 ### Performance
 Target throughput: a ~15-minute video yields ~3 shorts in roughly 15 minutes on
 a typical desktop i5 (CPU-only). Render time scales with clip count, length, and
-the chosen Whisper model size (`AUTOSHORTS_WHISPER_MODEL`).
+the chosen Whisper model size (`SHORTSMITH_WHISPER_MODEL`).
 
 ## Configuration
-All tunables live in `config.py` and are overridable via `AUTOSHORTS_*`
+All tunables live in `config.py` and are overridable via `SHORTSMITH_*`
 environment variables (model size, clip count/duration, caption style, render
 codec, output/upload dirs, etc.). No paths are hardcoded; defaults are relative
 to the project root.
 
 ## Project structure
 ```
-autoshorts/
+shortsmith/
 ├── app.py                 # Flask app + routes (Module 1)
 ├── config.py              # Central config, no hardcoded paths
 ├── pipeline/

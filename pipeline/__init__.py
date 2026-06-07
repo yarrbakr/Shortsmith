@@ -1,4 +1,4 @@
-"""AutoShorts AI processing pipeline.
+"""Shortsmith processing pipeline.
 
 Stages:
     transcriber -> scorer -> selector -> renderer (effects + captions)

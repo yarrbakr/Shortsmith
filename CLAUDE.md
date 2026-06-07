@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-AutoShorts AI — a 100% local, free, CPU-only web app that turns long videos into
-9:16 vertical shorts with burned-in animated captions (an open-source OpusClip /
-2short.ai clone). The project is being built phase-by-phase.
+Shortsmith — a 100% local, free, CPU-only web app that turns long videos into
+9:16 vertical shorts with burned-in animated captions (an open-source, local-first
+alternative to cloud clip tools like OpusClip). The project is being built
+phase-by-phase.
 
 ## Workflow (follow on every task)
 
@@ -29,7 +30,7 @@ AutoShorts AI — a 100% local, free, CPU-only web app that turns long videos in
 
 - **No paid APIs, cloud services, or subscriptions.** Everything runs locally on CPU.
 - **No hardcoded paths.** All paths go through `config.py` (relative to project root,
-  overridable via `AUTOSHORTS_*` env vars). Use `pathlib`, never string-concatenate paths.
+  overridable via `SHORTSMITH_*` env vars). Use `pathlib`, never string-concatenate paths.
 - **Cross-platform:** code must run unmodified on Windows 10+ and Ubuntu 22.04.
 - **Python 3.12 only.** Python 3.13 fails: `av` and `numpy` have no 3.13 wheels and
   fall back to source compilation (needs MSVC). Create the venv with `py -3.12`.
