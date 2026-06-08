@@ -43,14 +43,23 @@ def run_pipeline(job_id: str) -> None:
         JOBS.update(job_id, progress=65, message="Rendering clips...")
         results: list[dict] = []
         total = len(selected) or 1
+        # The whole batch's per-signal scores, so each clip's "stands out"
+        # signal is judged relative to its peers (B3).
+        peer_components = [c.get("components") or {} for c in selected]
         for index, clip in enumerate(selected):
             out_path = renderer.render(video_path, clip, out_dir)
+            components = clip.get("components")
             results.append({
                 "file": out_path.name,
                 "url": f"/download/{job_id}/{out_path.name}",
                 "start": clip.get("start"),
                 "end": clip.get("end"),
                 "score": clip.get("score"),
+                # Virality grade (B3): surface the score the scorer already
+                # computed as a 0-100 + A-F grade, with its per-signal breakdown.
+                "grade": scorer.grade(clip.get("score") or 0.0),
+                "components": components,
+                "top_signal": scorer.top_signal(components, peers=peer_components),
             })
             progress = 65 + int((index + 1) / total * 35)
             JOBS.update(job_id, progress=progress, results=list(results))

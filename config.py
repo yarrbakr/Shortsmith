@@ -86,6 +86,13 @@ class Config:
     W_ENERGY = float(os.environ.get("SHORTSMITH_W_ENERGY", "0.20"))
     W_REPETITION = float(os.environ.get("SHORTSMITH_W_REPETITION", "0.20"))
 
+    # Virality grade (Module 3 → UI). The weights above sum to ~1.0, so a clip's
+    # blended score is already a 0..1 fraction of the theoretical maximum; it is
+    # surfaced in the UI as a 0-100 "clip strength" percentage bucketed into an
+    # A-F letter via these (letter, min_pct) cutoffs, highest first. This is a
+    # heuristic grade, NOT a prediction of real-world views.
+    GRADE_THRESHOLDS = [("A", 80), ("B", 65), ("C", 50), ("D", 35), ("F", 0)]
+
     # --- Rendering (Module 4) ---------------------------------------------
     TARGET_WIDTH = 1080
     TARGET_HEIGHT = 1920       # 9:16 vertical

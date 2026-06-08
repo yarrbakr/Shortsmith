@@ -22,9 +22,9 @@
 
 | | |
 |---|---|
-| **Active branch** | `main` (planning — no feature branch checked out yet) |
-| **Phase** | v1 complete (Phases 0–6 ✅). Now in **post-v1 feature planning**. |
-| **Next up** | _TBD — pick a feature from the backlog below and cut its branch._ |
+| **Active branch** | `main` (B3 merged — no feature branch checked out) |
+| **Phase** | v1 complete (Phases 0–6 ✅). First post-v1 feature (**B3**) shipped. |
+| **Next up** | _Pick the next backlog item — e.g. B1 caption styles or A1 audio fix._ |
 
 ---
 
@@ -77,11 +77,12 @@ Prioritised against the two chosen directions: **(A) Fix & polish v1** and
 |---|---|---|---|---|
 | B1 | Multiple caption styles (Hormozi / karaoke multi-word / minimal) | `feature/caption-styles` | 📋 | Word-by-word highlight is the dominant 2026 style; we only do single-word pop. Pure rendering. |
 | B2 | Filler-word & silence removal | `feature/silence-trim` | 📋 | Reuse scorer's filler lists + word timestamps; splice them out. |
-| B3 | Virality score / A–F grade in the UI | `feature/virality-score` | 📋 | Surface the score we **already compute** (per-signal breakdown → grade). Near-free, high perceived value. |
+| B3 | Virality score / A–F grade in the UI | `feature/virality-score` | ✅ | Surfaces the score we **already compute** as A–F + 0–100 + a *relative* standout signal + collapsible per-signal breakdown. Confirmed live. progress.md → Post-v1 → B3. Follow-up: **B8**. |
 | B4 | Auto-emojis on captions | `feature/auto-emoji` | 📋 | Local keyword→emoji dict; no AI/cloud. |
 | B5 | Platform export presets (9:16 / 1:1 / 4:5 / 16:9) | `feature/aspect-presets` | 📋 | Config-driven render dimensions per target platform. |
 | B6 | Background music (bundled royalty-free, ducked under speech) | `feature/bg-music` | 📋 | Ship OFL/CC0 tracks; mix at low volume. |
 | B7 | Active-speaker tracking auto-reframe (eased pan) | `feature/speaker-tracking` | 📋 | Upgrade of existing optional Haar face detection → tracked panning. Heaviest of the set on CPU. |
+| B8 | Spread / calibrate the virality grade scale | `feature/grade-calibration` | 📋 | **Refines B3.** On uniform talking-head content the heuristic signals saturate/zero/flatten so grades cluster (most clips → B). Relabel as a relative ranking + curve the %, or recalibrate `GRADE_THRESHOLDS`. Deferred until tested on varied real video (don't over-tune on one sample). progress.md → B3 "Known limitation". |
 
 ### Deferred — needs cloud/GPU (violates the local-CPU hard rule)
 

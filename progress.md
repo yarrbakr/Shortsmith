@@ -291,6 +291,65 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
 
 ---
 
+## Post-v1 features
+
+> v1 (Phases 0–6) shipped on `main`. Post-v1 work follows the feature-branch
+> workflow in `Features.md` (one feature → one branch). Each feature gets a
+> section here when it goes 🟡 In progress.
+
+### B3 — Virality grade in the UI ✅ (branch `feature/virality-score`)
+**Depends on:** Phase 3 (scorer) + Phase 6 (UI). **Goal:** surface the per-clip
+score the scorer **already computes** as a friendly 0–100 + A–F grade, with a
+per-signal breakdown — no new modeling, fully local. (Pairs with `UI-UX.md` U4.)
+
+**Deliverables:**
+- [x] `scorer.grade(score)` — 0..1 blended score → `{pct 0-100, letter A–F}` via
+      `CONFIG.GRADE_THRESHOLDS` (weights sum to ~1.0, so the score is already a
+      fraction of the theoretical max — honest percentage, no fake curve).
+- [x] `scorer.top_signal(components, peers=…)` — names the signal on which a clip
+      most **stands out from its batch peers** (skips signals that don't vary across
+      the batch, e.g. a hook every clip hits), so per-clip labels actually differ.
+      Falls back to the absolute weight-adjusted strongest signal for a lone clip or
+      an all-identical batch. Labels via `SIGNAL_LABELS`.
+- [x] Orchestrator enriches each result with `grade`, `components`, `top_signal`
+      (keeps `score` for back-compat; no stage-signature change).
+- [x] UI: grade block on each result card (letter pill + "Virality NN" + strongest
+      signal + score bar) replacing the old raw `score 0.62` chip, plus a
+      collapsible **"Why this grade?"** per-signal breakdown (`<details>`).
+- [x] `config.py` tunable `GRADE_THRESHOLDS` (letter, min_pct cutoffs).
+
+**Done when:** each result card shows an A–F grade + 0–100 + the standout signal,
+with an expandable per-signal breakdown. ✅ (confirmed live in the results grid)
+
+**Notes:**
+- **Honest framing:** it's a heuristic *clip-strength* grade, **not** a prediction
+  of real-world views. Documented in `config.py`, `scorer.grade`, and surfaced as
+  "Virality NN" (the market term) without over-promising.
+- **Grade colour scale is intentionally a green→red data-viz ramp**, kept distinct
+  from the brand purple `#7C3AED` so the grade reads as a measurement, not chrome.
+  (Logged in `UI-UX.md`'s "one brand purple" principle as a deliberate exception.)
+- **Contract change (carry-forward below):** the orchestrator `results` payload now
+  carries `grade`/`components`/`top_signal`. `components` was previously labelled
+  "safe to ignore downstream" (Phase-3 carry-forward) — B3 now consumes it.
+- Verified offline against `sample_transcript.json`: top clips grade **A (83)** and
+  **B (76)**, breakdowns sensible (energy 0.5 neutral with no `audio.wav`). Grade
+  buckets spot-checked (0.34→F, 0.5→C, 0.8→A). On a real narrated job the three clips
+  graded B 72/72/71 and `top_signal` differentiated them **Clarity / Energy / Length**
+  (relative mode) where the naive weighted version had labelled all three "Hook".
+  Edge cases: lone clip / identical batch → absolute fallback; empty → `None`.
+  `/health` still 200; app + node `--check` clean.
+
+**Known limitation / deferred refinement (→ `Features.md` B8):** on uniform
+talking-head content the five heuristic signals saturate (hook), zero out (pause), or
+sit flat (energy is measured *relative to the clip's own mean*, so it hovers near 0.5),
+so totals cluster in a narrow band and most clips read as **B**. The grade is faithful
+to the scorer — this is a *calibration* gap, not a bug. A follow-up (**B8**) can spread
+the scale (relabel as a relative ranking + curve the percentage, or recalibrate
+`GRADE_THRESHOLDS`); intentionally deferred until tested on varied real-world video so
+we don't over-tune against one near-uniform sample.
+
+---
+
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
@@ -329,7 +388,16 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   in the **source video's** timeline) is preserved specifically so Phase 5 can burn word-synced
   captions without re-running transcription. **Phase 5 must offset word times by the clip
   `start`** to map them onto the cut clip's local timeline. `components` (per-signal score
-  breakdown) is debug/tuning metadata — safe to ignore downstream.
+  breakdown) is debug/tuning metadata — safe to ignore downstream. *(Update: post-v1 feature
+  **B3** now consumes `components` to render the UI virality breakdown — see below.)*
+
+- **[B3 (post-v1) → UI] The `results` payload now carries the grade, not just a raw score.**
+  Each result dict from the orchestrator is `{file, url, start, end, score, grade, components,
+  top_signal}` — `grade` is `{pct, letter}`, `components` is the 5 per-signal sub-scores (0..1),
+  `top_signal` is the weight-adjusted strongest signal's label. `score` is retained for
+  back-compat. Grade math lives in `scorer.grade`/`scorer.top_signal` (cutoffs in
+  `CONFIG.GRADE_THRESHOLDS`); the UI just renders the payload. Any future consumer that derives
+  a grade should call `scorer.grade` rather than re-implementing the mapping.
 
 - **[Phase 4 → Phase 5] The render builds a final clip, then writes it — captions slot in
   before the write.** `renderer.render` chains `subclipped → reframe_to_vertical → punch_in_zoom`
@@ -352,6 +420,22 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
 
 ## Changelog
+- **2026-06-08** — **B3: virality grade in the UI** (branch `feature/virality-score`, first
+  post-v1 feature). Surfaced the per-clip score the scorer already computes as a 0–100 + A–F
+  grade with a per-signal breakdown — no new modeling, fully local. Added `scorer.grade` +
+  `scorer.top_signal` (+ `SIGNAL_LABELS`), `CONFIG.GRADE_THRESHOLDS`, and enriched the
+  orchestrator `results` payload with `grade`/`components`/`top_signal` (kept `score`; no stage
+  signature change). UI: result cards now show a letter pill + "Virality NN" + strongest signal
+  + score bar (replacing the raw `score 0.62` chip) and a collapsible "Why this grade?" per-signal
+  breakdown; grade colours are a deliberate green→red data-viz ramp distinct from brand purple.
+  Honest framing throughout: heuristic *clip-strength*, not a view prediction. `top_signal` is
+  **relative** — it names the signal a clip stands out on vs its batch peers (skipping signals
+  that don't vary, e.g. a hook every clip hits), so labels differentiate instead of all reading
+  "Hook"; falls back to absolute strongest for a lone/identical batch. Verified offline
+  (`sample_transcript.json` A 83 / B 76) and on a real narrated job (B 72/72/71, standout signals
+  Clarity / Energy / Length); `/health` 200. Logged the **B8** follow-up (spread/calibrate the
+  grade scale, deferred until tested on varied real video). See Post-v1 → B3 and the `[B3 → UI]`
+  carry-forward.
 - **2026-06-07** — **Post-v1 planning docs added.** Created `Features.md` (feature → branch →
   status index + post-v1 backlog + a feature-branch workflow: `feature/`·`fix/`·`chore/`),
   `FEATURE-RESEARCH.md` (web research on candidate features filtered through the local-CPU hard

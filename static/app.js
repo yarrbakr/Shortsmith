@@ -170,13 +170,14 @@ function buildCard(jobId, clip, index) {
   title.textContent = `Clip ${index + 1}`;
   body.appendChild(title);
 
+  if (clip.grade) body.appendChild(buildGrade(clip));
+
   const badges = document.createElement("div");
   badges.className = "badges";
   if (clip.start != null && clip.end != null) {
     badges.appendChild(badge(`${formatTime(clip.start)}–${formatTime(clip.end)}`));
   }
   if (duration != null) badges.appendChild(badge(`${duration.toFixed(1)}s`));
-  if (clip.score != null) badges.appendChild(badge(`score ${Number(clip.score).toFixed(2)}`, "score"));
   body.appendChild(badges);
 
   const actions = document.createElement("div");
@@ -213,6 +214,95 @@ function buildCard(jobId, clip, index) {
 
   card.appendChild(body);
   return card;
+}
+
+// --- Virality grade (B3) ---------------------------------------------------
+
+// Labels for the scorer's per-signal components (mirrors scorer.SIGNAL_LABELS).
+const SIGNAL_LABELS = {
+  hook: "Hook",
+  length: "Length",
+  pause: "Clean cut",
+  energy: "Energy",
+  repetition: "Clarity",
+};
+
+// Build the grade block: letter pill + "Virality NN" + strongest signal, a
+// score bar, and a collapsible per-signal breakdown.
+function buildGrade(clip) {
+  const g = clip.grade;
+  const wrap = document.createElement("div");
+  wrap.className = "grade";
+
+  const head = document.createElement("div");
+  head.className = "grade-head";
+
+  const pill = document.createElement("span");
+  pill.className = `grade-pill grade-${g.letter}`;
+  pill.textContent = g.letter;
+  head.appendChild(pill);
+
+  const meta = document.createElement("div");
+  meta.className = "grade-meta";
+  const scoreEl = document.createElement("span");
+  scoreEl.className = "grade-score";
+  scoreEl.textContent = `Virality ${g.pct}`;
+  meta.appendChild(scoreEl);
+  if (clip.top_signal) {
+    const why = document.createElement("span");
+    why.className = "grade-why";
+    why.textContent = `Stands out: ${clip.top_signal}`;
+    meta.appendChild(why);
+  }
+  head.appendChild(meta);
+  wrap.appendChild(head);
+
+  const bar = document.createElement("div");
+  bar.className = "grade-bar";
+  const fill = document.createElement("div");
+  fill.className = `grade-bar-fill grade-${g.letter}`;
+  fill.style.width = g.pct + "%";
+  bar.appendChild(fill);
+  wrap.appendChild(bar);
+
+  if (clip.components) wrap.appendChild(buildBreakdown(clip.components));
+  return wrap;
+}
+
+// Collapsible "Why this grade?" — a mini bar per scoring signal (0..1 → %).
+function buildBreakdown(components) {
+  const details = document.createElement("details");
+  details.className = "breakdown";
+
+  const summary = document.createElement("summary");
+  summary.textContent = "Why this grade?";
+  details.appendChild(summary);
+
+  const list = document.createElement("div");
+  list.className = "breakdown-list";
+  for (const [key, label] of Object.entries(SIGNAL_LABELS)) {
+    const value = components[key];
+    if (value == null) continue;
+    const row = document.createElement("div");
+    row.className = "breakdown-row";
+
+    const name = document.createElement("span");
+    name.className = "breakdown-label";
+    name.textContent = label;
+
+    const track = document.createElement("div");
+    track.className = "breakdown-track";
+    const fill = document.createElement("div");
+    fill.className = "breakdown-fill";
+    fill.style.width = Math.round(value * 100) + "%";
+    track.appendChild(fill);
+
+    row.appendChild(name);
+    row.appendChild(track);
+    list.appendChild(row);
+  }
+  details.appendChild(list);
+  return details;
 }
 
 // --- Small helpers ---------------------------------------------------------
