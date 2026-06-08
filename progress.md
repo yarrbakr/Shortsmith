@@ -7,6 +7,12 @@
 **Goal:** 100% local, free, CPU-only web app that turns long videos into 9:16
 vertical shorts with burned-in animated captions. Open-source.
 
+**Companion docs** (this file stays the source of truth; they feed into it):
+- **`Features.md`** — feature → branch → status index + post-v1 backlog + branching workflow.
+- **`FEATURE-RESEARCH.md`** — web research on candidate features + local-CPU feasibility.
+- **`RESEARCH.md`** — internal design-decisions / trade-offs log (choices already made).
+- **`UI-UX.md`** — visual-design system + UI/UX improvement plan.
+
 **Hard rules (non-negotiable):**
 - No paid APIs / cloud / subscriptions — everything runs locally on CPU.
 - No hardcoded paths — use `config.py` (relative paths + env overrides).
@@ -346,6 +352,13 @@ processing lifecycle via routes. (No AI yet — this is the backbone.)
   `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
 
 ## Changelog
+- **2026-06-07** — **Post-v1 planning docs added.** Created `Features.md` (feature → branch →
+  status index + post-v1 backlog + a feature-branch workflow: `feature/`·`fix/`·`chore/`),
+  `FEATURE-RESEARCH.md` (web research on candidate features filtered through the local-CPU hard
+  rule — caption styles, silence/filler trim, a UI virality grade reusing the existing scorer,
+  auto-emoji, aspect presets, bg-music, speaker-tracking; cloud/GPU features deferred), and
+  `UI-UX.md` (design system + UI/UX improvement backlog). Wired references to all three into
+  `CLAUDE.md` and this file's header. No code changes; v1 (Phases 0–6) unchanged.
 - **2026-06-07** — **Project renamed `AutoShorts AI` → `Shortsmith`.** Full rebrand: display
   name/title/footer, `LICENSE` copyright, README + CLAUDE.md + RESEARCH.md docs, `/health`
   service id (`shortsmith`), and the env-var prefix `AUTOSHORTS_*` → `SHORTSMITH_*` across

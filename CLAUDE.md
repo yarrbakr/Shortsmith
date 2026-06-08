@@ -26,6 +26,22 @@ phase-by-phase.
 4. **After completing a whole phase**, push to GitHub:
    `git add -A && git commit -m "Phase N: <summary>" && git push`
 
+## Project docs (read the relevant one before working)
+
+`progress.md` remains the **source of truth** (detailed feature specs, deliverable
+checklists, carry-forward decisions, changelog). These companion docs feed into it:
+
+- **`Features.md`** — at-a-glance index of features → which branch each lives in → status,
+  plus the post-v1 backlog and the branching workflow. Detail still lives in `progress.md`.
+- **`FEATURE-RESEARCH.md`** — web research on *candidate* features and their local-CPU
+  feasibility (the idea pipeline that feeds `Features.md`). Distinct from `RESEARCH.md`.
+- **`RESEARCH.md`** — internal design-decisions / trade-offs log for choices already made.
+- **`UI-UX.md`** — the visual-design system and UI/UX improvement plan.
+
+**Branching (post-v1):** one feature → one branch (`feature/…`, `fix/…`, `chore/…`), cut
+from `main`, merged back when done. Keep the *Active branch* row and Status columns in
+`Features.md` in sync with reality. See `Features.md` for the full convention.
+
 ## Hard rules (do not violate)
 
 - **No paid APIs, cloud services, or subscriptions.** Everything runs locally on CPU.
