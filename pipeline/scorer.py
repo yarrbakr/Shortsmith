@@ -240,6 +240,81 @@ class _EnergyAnalyzer:
         return max(0.0, min(1.0, ratio / 2.0))
 
 
+# --- Virality grade (score → UI) ------------------------------------------
+
+# Human-readable labels for the per-signal score components.
+SIGNAL_LABELS = {
+    "hook": "Hook",
+    "length": "Length",
+    "pause": "Clean cut",
+    "energy": "Energy",
+    "repetition": "Clarity",
+}
+
+# Weight each component carries in the blended total (mirrors ``score``).
+_SIGNAL_WEIGHTS = {
+    "hook": CONFIG.W_HOOK,
+    "length": CONFIG.W_LENGTH,
+    "pause": CONFIG.W_PAUSE,
+    "energy": CONFIG.W_ENERGY,
+    "repetition": CONFIG.W_REPETITION,
+}
+
+
+def grade(score_value: float) -> dict:
+    """Map a 0..1 blended clip score to a 0-100 percentage + A-F letter.
+
+    The CONFIG weights sum to ~1.0, so ``score_value`` is already a fraction of
+    the theoretical maximum; we surface it as a percentage and bucket it into a
+    letter via ``CONFIG.GRADE_THRESHOLDS``. This is a heuristic *clip-strength*
+    grade, not a prediction of real-world views.
+    """
+    pct = max(0, min(100, round(float(score_value) * 100)))
+    letter = CONFIG.GRADE_THRESHOLDS[-1][0]  # fallback = lowest grade
+    for cutoff_letter, min_pct in CONFIG.GRADE_THRESHOLDS:
+        if pct >= min_pct:
+            letter = cutoff_letter
+            break
+    return {"pct": pct, "letter": letter}
+
+
+def top_signal(components: dict | None, peers: list[dict] | None = None) -> str | None:
+    """Label of the signal that best characterises a clip.
+
+    With ``peers`` (the component dicts of every clip in the same batch,
+    including this one), name the signal on which this clip most **stands out
+    from its peers** — skipping signals that don't vary across the batch, since
+    a signal that's identical everywhere (e.g. a hook keyword every clip hits)
+    can't distinguish one clip from another. This is what makes per-clip labels
+    actually differ instead of all collapsing onto the highest-weight signal.
+
+    Without ``peers`` (a lone clip, or an all-identical batch) fall back to the
+    signal that contributed most to the blended score, weighted by its CONFIG
+    weight. ``None`` for empty input.
+    """
+    if not components:
+        return None
+
+    if peers:
+        keys = list(components.keys())
+        means = {k: sum(p.get(k, 0.0) for p in peers) / len(peers) for k in keys}
+        varying = [
+            k for k in keys
+            if max(p.get(k, 0.0) for p in peers) - min(p.get(k, 0.0) for p in peers) > 1e-6
+        ]
+        if varying:
+            # Largest positive deviation above the batch mean; CONFIG weight
+            # only breaks ties between equally-distinctive signals.
+            best = max(
+                varying,
+                key=lambda k: (components.get(k, 0.0) - means[k], _SIGNAL_WEIGHTS.get(k, 0.0)),
+            )
+            return SIGNAL_LABELS.get(best, best.title())
+
+    best = max(components, key=lambda k: _SIGNAL_WEIGHTS.get(k, 0.0) * components[k])
+    return SIGNAL_LABELS.get(best, best.title())
+
+
 def score(transcript: dict, video_path: Path) -> list[dict]:
     """Score candidate clips drawn from a transcript.
 

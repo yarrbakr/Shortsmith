@@ -194,6 +194,57 @@ button, .btn {
 }
 .badge-chip.score { color: var(--accent); border-color: rgba(124, 58, 237, 0.4); }
 
+/* --- Virality grade (B3) --- */
+.grade { display: flex; flex-direction: column; gap: 0.55rem; }
+.grade-head { display: flex; align-items: center; gap: 0.6rem; }
+.grade-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  font-size: 1.05rem; font-weight: 700;
+  color: #0a0a0f;
+  border-radius: 8px;
+}
+.grade-meta { display: flex; flex-direction: column; line-height: 1.25; }
+.grade-score { font-weight: 600; font-size: 0.92rem; }
+.grade-why { font-size: 0.72rem; color: var(--muted); }
+.grade-bar { height: 7px; background: var(--card-2); border-radius: 5px; overflow: hidden; }
+.grade-bar-fill { height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+
+/* Grade colour scale — intentionally a data-viz green→red ramp, distinct from
+   the brand purple so the grade reads as a measurement, not a brand element. */
+.grade-A { background: #34d399; }
+.grade-B { background: #a3e635; }
+.grade-C { background: #fbbf24; }
+.grade-D { background: #fb923c; }
+.grade-F { background: #f0506e; }
+
+.breakdown { font-size: 0.75rem; }
+.breakdown summary {
+  cursor: pointer;
+  color: var(--muted);
+  list-style: none;
+  user-select: none;
+  padding: 0.1rem 0;
+}
+.breakdown summary::-webkit-details-marker { display: none; }
+.breakdown summary::before { content: "▸ "; font-size: 0.7em; }
+.breakdown[open] summary::before { content: "▾ "; }
+.breakdown summary:hover,
+.breakdown[open] summary { color: var(--text); }
+.breakdown-list { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.45rem; }
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 5.2rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+.breakdown-label { color: var(--muted); }
+.breakdown-track { height: 5px; background: var(--card-2); border-radius: 4px; overflow: hidden; }
+.breakdown-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 .captions {

@@ -82,7 +82,7 @@ Legend: 📋 Planned · 🟡 In progress · ✅ Done
 | U1 | Fix greyed inline-audio control | 📋 | Same work as `Features.md` A1; biggest visible UX wart. |
 | U2 | Brand the wordmark (bundled display font for the hero/logo) | 📋 | Self-hosted; no network. Reuse the caption font or add one under `static/fonts/`. |
 | U3 | Richer first-run / empty state | 📋 | Short "how it works" + sample output thumbnail before any upload. |
-| U4 | Virality grade on result cards | 📋 | Pairs with `Features.md` B3 — A–F badge + score bar per clip. |
+| U4 | Virality grade on result cards | ✅ | Shipped with `Features.md` B3 — letter pill + "Virality NN" + *relative* "Stands out" signal + score bar + collapsible per-signal breakdown. Grade colours are a deliberate green→red data-viz ramp (exception to "one brand purple"). Confirmed live. |
 | U5 | Results card polish | 📋 | Hover lift, quick actions (Download MP4/SRT, copy captions), nicer loading skeletons. |
 | U6 | More alive progress | 📋 | Per-stage state + incremental "clips ready" count as they finish. |
 | U7 | "Advanced options" panel | 📋 | Host future controls: caption style (B1), aspect preset (B5), music toggle (B6), silence-trim (B2). |
