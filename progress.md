@@ -406,6 +406,66 @@ and clips render in that style. ✅
 
 ---
 
+### B2 — Filler-word & silence removal ✅ (branch `feature/silence-trim`, dev on `claude/eager-ride-707rtd`)
+**Depends on:** Phase 2 (word timestamps) + Phase 3 (filler lists) + Phase 4 (render). **Goal:**
+a "magic cut" that splices out filler words/phrases and collapses long inter-word silences from
+each clip, tightening the short. Pure timeline splicing on data we already have — no new models,
+fully local/CPU.
+
+**User-confirmed scope:** remove **both fillers + silences**; **per-job toggle, default OFF**
+(opt-in); silence detected from **word-gap timing** (deterministic; RMS dead-air deferred).
+
+**Deliverables:**
+- [x] `pipeline/trimmer.py` (new, pure — no moviepy/IO): `plan_trim(clip) -> dict | None` computes
+      source-timeline `keep_ranges` + clip-local **remapped words** + `duration`, or `None`
+      ("render unchanged"). Drops filler words/phrases (reusing `CONFIG.FILLER_WORDS`/`FILLER_PHRASES`
+      via the scorer's exact `_normalize`), and splits the timeline on inter-word gaps
+      `> SILENCE_GAP_THRESHOLD` **or** wherever a filler was dropped between two kept words (so filler
+      *audio* is physically cut, not just un-captioned). Piecewise word remap onto the spliced
+      `[0, duration]` timeline.
+- [x] `renderer.render` splice integration **without signature change**: if a plan exists,
+      `concatenate_videoclips([source.subclipped(s,e) …], method="chain")` *before* reframe/zoom, and
+      feed captions a `{**clip, "start":0.0, "end":duration, "words":plan["words"]}` so `_local_words`
+      passes the remap through — **`captions.py` unchanged**. Best-effort: any failure → original
+      single-subclip path. Fragments closed in `finally`. Filenames stay stable.
+- [x] Config tunables (`config.py`, env-overridable): `SILENCE_TRIM_ENABLED` (off), `SILENCE_REMOVE_FILLERS`
+      (on), `SILENCE_GAP_THRESHOLD` (0.6s), `SILENCE_PAD` (0.06s), `SILENCE_MIN_KEPT_DURATION` (5.0s),
+      `SILENCE_MIN_SAVINGS` (0.2s), `SILENCE_MAX_FRAGMENTS` (40).
+- [x] Per-job plumbing (mirrors B1): `Job.trim_silence` field; `/upload` reads a form checkbox;
+      orchestrator stamps `clip["trim_silence"]`; enable if per-job toggle **or** global flag.
+- [x] UI: "Remove filler words & silences" checkbox in the existing Advanced-options panel + one
+      `app.js` FormData line + minimal `.checkbox-field` CSS.
+
+**Done when:** with the toggle on, clips have fillers + long silences spliced out and captions/SRT
+stay synced. ✅
+
+**Notes:**
+- **`None` = zero behavior change.** When trimming is disabled / nothing removable / below the kept
+  floor / over-fragmented / savings too small, `plan_trim` returns `None` and the renderer uses the
+  exact original single-subclip path — the common case is untouched, no concat overhead.
+- **Two hard problems solved:** (1) re-stitching = concatenate keep-ranges before reframe/zoom (so the
+  size contract + effects run once on the spliced clip); (2) caption re-sync = piecewise word remap +
+  the `start=0` clip copy, keeping `captions.py` and the locked `renderer.render` signature intact
+  (B2 rides the clip dict like B1).
+- **Filler audio actually cut:** a filler dropped between two kept words forces a split regardless of
+  gap size, so "um" is physically removed (the pad + post-merge step coalesces splits too small to be
+  worth a cut).
+- **Honest caveats:** hard splices can produce faint audio clicks (softened by `SILENCE_PAD`; a
+  crossfade knob is deferred — it would complicate the remap); heuristic filler-list matching, not
+  semantic — conservative and fully tunable/disable-able. RMS dead-air detection deferred.
+- Verified with real moviepy 2.2.1: `plan_trim` unit test (clip `[0,20]` with "um", a "you know"
+  phrase, and a 4s gap → keep_ranges `[(0,1.66),(1.94,2.86),(3.54,5.86),(9.74,14.06)]`, duration
+  **9.22s**, fillers gone from audio *and* captions, words monotonic in `[0,duration]`); all guard
+  cases → `None`. **Real `renderer.render` pass:** 20s span → **9.22s** spliced 1080×1920 MP4 with
+  audio; a frame at local t=6.0s shows run-B caption "HERE IS STEP" (correctly shifted left),
+  confirming caption sync on the spliced clip and that Hormozi (B1) composes with B2;
+  `captions._local_words` of the spliced clip == the remapped plan words (SRT/caption-sync proof
+  without touching captions.py). Template renders the checkbox in Advanced options; `Job.trim_silence`
+  plumbing works. `pysrt` absent in the 3.11 sandbox → SRT write exercised via its best-effort guard;
+  cue math is the same remapped words (unit-verified).
+
+---
+
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
@@ -485,7 +545,31 @@ and clips render in that style. ✅
   (was the implicit word_pop of Phase 5). `CAPTION_COLOR` (previously unused) is now consumed as
   the inactive-word colour; `CAPTION_HIGHLIGHT_COLOR` (#7C3AED) remains the active/highlight colour.
 
+- **[B2 (post-v1) → render/captions] Per-job filler/silence trim rides the clip dict; the renderer
+  splices keep-ranges.** The orchestrator stamps `clip["trim_silence"]` (from `Job.trim_silence`);
+  `renderer.render` calls `trimmer.plan_trim(clip)` and, when it returns a plan, builds the clip by
+  `concatenate_videoclips` over `plan["keep_ranges"]` instead of one `subclipped` — **the
+  `renderer.render(video_path, clip, out_dir)` signature is unchanged**. Captions stay synced because
+  the renderer passes `apply_captions` a `{**clip, "start":0.0, "end":plan["duration"],
+  "words":plan["words"]}` view (the words are pre-remapped onto the spliced clip-local timeline), so
+  **`captions.py`/`_local_words` need no changes**. `plan_trim` returning `None` is the contract for
+  "render exactly as before". Any future per-clip word-list transform (e.g. emoji injection B4) should
+  follow this same pattern: transform `words` + pass a clip copy, never change the render signature.
+
 ## Changelog
+- **2026-06-13** — **B2: filler-word & silence removal** (branch `feature/silence-trim`, dev on
+  `claude/eager-ride-707rtd`). New `pipeline/trimmer.py` (`plan_trim`) computes keep-ranges + clip-local
+  remapped words from each clip's word timestamps, dropping filler words/phrases (reusing the scorer's
+  `FILLER_WORDS`/`FILLER_PHRASES` + `_normalize`) and collapsing inter-word silences `> SILENCE_GAP_THRESHOLD`
+  (and forcing a cut wherever a filler is dropped, so filler audio is physically removed). `renderer.render`
+  splices the keep-ranges via `concatenate_videoclips` before reframe/zoom and feeds captions a `start=0`
+  remapped clip copy — **no `renderer.render` signature change and `captions.py` untouched**. Per-job toggle
+  (default **off**) plumbed `/upload` → `Job.trim_silence` → orchestrator → clip dict, with an Advanced-options
+  checkbox. Config tunables `SILENCE_TRIM_ENABLED`/`_REMOVE_FILLERS`/`_GAP_THRESHOLD`/`_PAD`/`_MIN_KEPT_DURATION`/
+  `_MIN_SAVINGS`/`_MAX_FRAGMENTS`. Best-effort throughout (`plan_trim → None` or splice failure → original
+  single-subclip path). Verified: unit tests (fillers+gap removed, words remapped monotonic in-bounds, all
+  guards → None) and a real render (20s span → 9.22s spliced MP4, audio intact, captions synced on the spliced
+  clip, Hormozi composes). See Post-v1 → B2 and the `[B2 → render/captions]` carry-forward.
 - **2026-06-13** — **B1: multiple caption styles** (branch `feature/caption-styles`, dev on
   `claude/eager-ride-707rtd`). Added a **Hormozi** karaoke style (short phrase on screen, spoken
   word highlighted in brand purple #7C3AED, rest white, wrap-capable centered lower-third) next to

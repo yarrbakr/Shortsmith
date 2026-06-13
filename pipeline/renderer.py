@@ -13,10 +13,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from moviepy import VideoFileClip
+from moviepy import VideoFileClip, concatenate_videoclips
 
 from config import CONFIG
-from pipeline import captions, effects
+from pipeline import captions, effects, trimmer
 
 
 def _output_name(start: float, end: float) -> str:
@@ -47,6 +47,7 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
     end = float(clip["end"])
 
     source = VideoFileClip(str(video_path))
+    fragments: list = []  # spliced sub-ranges (B2); closed in finally
     try:
         # Guard against a selection that runs past the real media (e.g. a
         # transcript word timestamped slightly beyond the decoded duration).
@@ -58,14 +59,44 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
                 f"start={start}, end={end}, source duration={source.duration}."
             )
 
-        subclip = source.subclipped(start, end)
-        focus = effects.detect_focus_x_ratio(subclip) if CONFIG.FACE_DETECT else 0.5
-        vertical = effects.reframe_to_vertical(subclip, focus_x_ratio=focus)
+        out_path = out_dir / _output_name(start, end)
+
+        # B2 — filler-word & silence removal. Best-effort: if a trim plan exists,
+        # cut its keep-ranges and concatenate them (before reframe/zoom, so the
+        # effects + size contract run once on the spliced clip), and feed captions
+        # a clip-local, pre-remapped word list (start=0) so subtitles stay synced
+        # without touching captions.py. Any failure falls back to the single subclip.
+        plan = None
+        try:
+            plan = trimmer.plan_trim(clip)
+        except Exception:  # noqa: BLE001 - trim planning must never kill a render
+            plan = None
+
+        caption_clip = clip
+        try:
+            if plan and plan.get("keep_ranges"):
+                fragments = [source.subclipped(s, e) for s, e in plan["keep_ranges"]]
+                base = concatenate_videoclips(fragments, method="chain")
+                caption_clip = {**clip, "start": 0.0, "end": plan["duration"],
+                                "words": plan["words"]}
+            else:
+                base = source.subclipped(start, end)
+        except Exception:  # noqa: BLE001 - any splice failure → full subclip
+            for frag in fragments:
+                try:
+                    frag.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            fragments = []
+            base = source.subclipped(start, end)
+            caption_clip = clip
+
+        focus = effects.detect_focus_x_ratio(base) if CONFIG.FACE_DETECT else 0.5
+        vertical = effects.reframe_to_vertical(base, focus_x_ratio=focus)
         final = effects.punch_in_zoom(vertical)
 
-        out_path = out_dir / _output_name(start, end)
         # Burn word-synced captions (best-effort) and export the sibling .srt.
-        final = captions.apply_captions(final, clip, out_dir, out_path)
+        final = captions.apply_captions(final, caption_clip, out_dir, out_path)
         # Logo/watermark on top of everything (incl. captions), then fade the
         # whole composite in/out at the boundaries. Both are best-effort no-ops
         # when disabled, so the render never depends on them.
@@ -86,4 +117,9 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
         )
         return out_path
     finally:
+        for frag in fragments:
+            try:
+                frag.close()
+            except Exception:  # noqa: BLE001
+                pass
         source.close()

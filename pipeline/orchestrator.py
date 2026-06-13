@@ -51,6 +51,7 @@ def run_pipeline(job_id: str) -> None:
         caption_style = job.caption_style or CONFIG.CAPTION_STYLE
         for index, clip in enumerate(selected):
             clip["caption_style"] = caption_style
+            clip["trim_silence"] = job.trim_silence  # B2: per-job filler/silence removal
             out_path = renderer.render(video_path, clip, out_dir)
             components = clip.get("components")
             results.append({
