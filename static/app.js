@@ -65,6 +65,8 @@ form.addEventListener("submit", async (event) => {
   data.append("video", fileInput.files[0]);
   const styleSel = document.getElementById("caption-style");
   if (styleSel) data.append("caption_style", styleSel.value);
+  const emojiToggle = document.getElementById("auto-emoji");
+  if (emojiToggle) data.append("auto_emoji", emojiToggle.checked ? "1" : "0");
 
   setBusy(true);
   resultsSection.classList.add("hidden");

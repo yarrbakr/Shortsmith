@@ -64,7 +64,12 @@ def create_app() -> Flask:
         style = (request.form.get("caption_style") or CONFIG.CAPTION_STYLE).lower()
         if style not in CONFIG.CAPTION_STYLES:
             style = CONFIG.CAPTION_STYLE
-        job = JOBS.create(filename=safe_name, caption_style=style)
+
+        # Optional per-job auto-emoji toggle (B4). Absent → None (use config
+        # default); otherwise a truthy string. Never reject the upload over it.
+        emoji_raw = request.form.get("auto_emoji")
+        auto_emoji = None if emoji_raw is None else emoji_raw.lower() in {"1", "true", "on", "yes"}
+        job = JOBS.create(filename=safe_name, caption_style=style, auto_emoji=auto_emoji)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id
         job_dir.mkdir(parents=True, exist_ok=True)

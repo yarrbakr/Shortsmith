@@ -115,6 +115,9 @@ body {
   cursor: pointer;
 }
 .field select:focus { outline: none; border-color: var(--accent); }
+.field.checkbox { flex-direction: row; align-items: center; gap: 0.5rem; }
+.field.checkbox span { color: var(--muted); font-size: 0.82rem; }
+.field.checkbox input { width: 1rem; height: 1rem; accent-color: var(--accent); cursor: pointer; }
 
 /* --- Buttons --- */
 button, .btn {
