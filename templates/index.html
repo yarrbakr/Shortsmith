@@ -28,6 +28,16 @@
             <p class="dz-title">Drop a video here, or <span class="accent">browse</span></p>
             <p class="dz-hint" id="dz-hint">MP4, MOV, MKV, WEBM, AVI, M4V · up to 1&nbsp;GB</p>
           </label>
+          <details class="advanced">
+            <summary>Advanced options</summary>
+            <label class="field" for="caption-style">
+              <span>Caption style</span>
+              <select id="caption-style" name="caption_style">
+                <option value="hormozi" selected>Hormozi — phrase with highlighted word</option>
+                <option value="word_pop">Word pop — one big word at a time</option>
+              </select>
+            </label>
+          </details>
           <button type="submit" id="submit-btn" disabled>Upload &amp; Process</button>
         </form>
       </section>

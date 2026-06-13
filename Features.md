@@ -22,9 +22,9 @@
 
 | | |
 |---|---|
-| **Active branch** | `main` (B3 merged — no feature branch checked out) |
-| **Phase** | v1 complete (Phases 0–6 ✅). First post-v1 feature (**B3**) shipped. |
-| **Next up** | _Pick the next backlog item — e.g. B1 caption styles or A1 audio fix._ |
+| **Active branch** | `feature/caption-styles` (dev on `claude/eager-ride-707rtd`) — **B1** built |
+| **Phase** | v1 complete (Phases 0–6 ✅). Post-v1: **B3** + **B1** shipped. |
+| **Next up** | _Pick the next backlog item — e.g. B2 silence-trim, A1 audio fix, or B8 grade calibration._ |
 
 ---
 
@@ -75,7 +75,7 @@ Prioritised against the two chosen directions: **(A) Fix & polish v1** and
 
 | # | Feature | Proposed branch | Status | Notes |
 |---|---|---|---|---|
-| B1 | Multiple caption styles (Hormozi / karaoke multi-word / minimal) | `feature/caption-styles` | 📋 | Word-by-word highlight is the dominant 2026 style; we only do single-word pop. Pure rendering. |
+| B1 | Multiple caption styles (Hormozi multi-word + highlight / word-pop) | `feature/caption-styles` | ✅ | Added the dominant 2026 **Hormozi** karaoke style (phrase + highlighted spoken word) next to word-pop; selectable via env + a UI "Advanced options" dropdown; default now Hormozi. Per-job style rides the clip dict (no render-contract change). progress.md → Post-v1 → B1. |
 | B2 | Filler-word & silence removal | `feature/silence-trim` | 📋 | Reuse scorer's filler lists + word timestamps; splice them out. |
 | B3 | Virality score / A–F grade in the UI | `feature/virality-score` | ✅ | Surfaces the score we **already compute** as A–F + 0–100 + a *relative* standout signal + collapsible per-signal breakdown. Confirmed live. progress.md → Post-v1 → B3. Follow-up: **B8**. |
 | B4 | Auto-emojis on captions | `feature/auto-emoji` | 📋 | Local keyword→emoji dict; no AI/cloud. |

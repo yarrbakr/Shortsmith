@@ -130,8 +130,10 @@ class Config:
 
     # --- Captions / Subtitles (Module 5) ----------------------------------
     # Word-synced animated captions burned onto each clip + an SRT export.
-    # Style: one large word at a time, centered, with a quick pop-in scale
-    # (classic viral-shorts look). All env-overridable; no hardcoded paths.
+    # Two styles are available (see CAPTION_STYLE below): "hormozi" (default) —
+    # a short phrase on screen with the spoken word highlighted, karaoke-style —
+    # and "word_pop" — one large word at a time with a quick pop-in scale (the
+    # original Phase-5 look). All env-overridable; no hardcoded paths.
     CAPTION_ENABLED = os.environ.get("SHORTSMITH_CAPTIONS", "1").lower() not in {"0", "false", "no"}
     # moviepy 2.x TextClip needs a real font FILE. We bundle an OFL font so a
     # fresh clone works offline on Windows + Ubuntu without a system font.
@@ -153,6 +155,20 @@ class Config:
     CAPTION_SYNC_TOLERANCE = float(os.environ.get("SHORTSMITH_CAPTION_SYNC", "0.3"))
     # Words per SRT cue (readable subtitle grouping).
     SRT_MAX_WORDS_PER_LINE = int(os.environ.get("SHORTSMITH_SRT_MAX_WORDS", "7"))
+
+    # --- Caption style selector (B1) --------------------------------------
+    # "hormozi" = a short phrase on screen with the spoken word highlighted in
+    # CAPTION_HIGHLIGHT_COLOR (karaoke feel; default). "word_pop" = one big word
+    # with a pop-in (the original Phase-5 look). Env-overridable; validated
+    # against CAPTION_STYLES (an unknown value falls back to "word_pop").
+    CAPTION_STYLE = os.environ.get("SHORTSMITH_CAPTION_STYLE", "hormozi").lower()
+    CAPTION_STYLES = ("word_pop", "hormozi")  # allowed registry
+    # Hormozi: max words shown together before forcing a new phrase (also breaks
+    # on sentence punctuation). Keeps each on-screen line short + readable.
+    CAPTION_HORMOZI_MAX_WORDS = int(os.environ.get("SHORTSMITH_HORMOZI_MAX_WORDS", "4"))
+    # Horizontal gap between words in a phrase / vertical gap between wrapped lines (px).
+    CAPTION_HORMOZI_WORD_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_WORD_SPACING", "24"))
+    CAPTION_HORMOZI_LINE_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_LINE_SPACING", "16"))
 
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("SHORTSMITH_SECRET_KEY", "dev-key-change-me")

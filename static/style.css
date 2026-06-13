@@ -90,6 +90,32 @@ body {
 .dz-title { margin: 0.35rem 0 0; font-weight: 600; }
 .dz-hint { margin: 0; font-size: 0.82rem; color: var(--muted); word-break: break-word; }
 
+/* --- Advanced options (caption style, etc.) --- */
+.advanced { font-size: 0.9rem; }
+.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  list-style: none;
+  user-select: none;
+  padding: 0.2rem 0;
+}
+.advanced summary::-webkit-details-marker { display: none; }
+.advanced summary::before { content: "▸ "; font-size: 0.8em; }
+.advanced[open] summary::before { content: "▾ "; }
+.advanced summary:hover, .advanced[open] summary { color: var(--text); }
+.field { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.6rem; }
+.field > span { color: var(--muted); font-size: 0.82rem; }
+.field select {
+  font: inherit;
+  padding: 0.6rem 0.7rem;
+  color: var(--text);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.field select:focus { outline: none; border-color: var(--accent); }
+
 /* --- Buttons --- */
 button, .btn {
   font: inherit;
