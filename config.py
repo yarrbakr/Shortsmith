@@ -164,8 +164,9 @@ class Config:
     CAPTION_STYLE = os.environ.get("SHORTSMITH_CAPTION_STYLE", "hormozi").lower()
     CAPTION_STYLES = ("word_pop", "hormozi")  # allowed registry
     # Hormozi: max words shown together before forcing a new phrase (also breaks
-    # on sentence punctuation). Keeps each on-screen line short + readable.
-    CAPTION_HORMOZI_MAX_WORDS = int(os.environ.get("SHORTSMITH_HORMOZI_MAX_WORDS", "4"))
+    # on sentence punctuation). Kept at 3 so lines stay short with comfortable
+    # side margins; longer phrases still wrap within CAPTION_MAX_WIDTH_RATIO.
+    CAPTION_HORMOZI_MAX_WORDS = int(os.environ.get("SHORTSMITH_HORMOZI_MAX_WORDS", "3"))
     # Horizontal gap between words in a phrase / vertical gap between wrapped lines (px).
     CAPTION_HORMOZI_WORD_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_WORD_SPACING", "24"))
     CAPTION_HORMOZI_LINE_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_LINE_SPACING", "16"))

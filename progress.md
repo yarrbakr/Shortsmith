@@ -359,8 +359,8 @@ rendering on top of the existing word-level timestamps — no new modeling, full
 
 **Deliverables:**
 - [x] `CONFIG.CAPTION_STYLE` selector + `CAPTION_STYLES` registry (`{"word_pop","hormozi"}`),
-      default flipped to **`hormozi`**; Hormozi tunables `CAPTION_HORMOZI_MAX_WORDS` (4),
-      `_WORD_SPACING` (24px), `_LINE_SPACING` (16px) — all env-overridable.
+      default flipped to **`hormozi`**; Hormozi tunables `CAPTION_HORMOZI_MAX_WORDS` (3,
+      for comfortable side margins), `_WORD_SPACING` (24px), `_LINE_SPACING` (16px) — all env-overridable.
 - [x] `captions.build_hormozi_clips` — groups words into ≤`MAX_WORDS` phrases (also break
       on sentence punctuation via `_group_phrases`), lays each phrase out as a centered,
       wrap-capable line in the lower third; each word gets a **white base** clip spanning
@@ -394,8 +394,8 @@ and clips render in that style. ✅
 - **The Advanced-options reveal seeds UI-UX.md U7** (future home for aspect/music/silence-trim
   controls) using the existing `details/summary` pattern.
 - Verified with real moviepy 2.2.1 against `sample_transcript.json` (segment "Here is the
-  secret nobody tells you…", 25 words): `_group_phrases` → `[4,4,1,4,4,4,4]` (≤4, breaks on the
-  sentence-ending word); `build_hormozi_clips` → **50 clips** (25 white base + 25 purple
+  secret nobody tells you…", 25 words): `_group_phrases` groups into ≤3-word, sentence-aware
+  phrases; `build_hormozi_clips` → **50 clips** (25 white base + 25 purple
   highlight), all `(x,y)` ints with `0≤x≤1080`, y centered on the 0.72 lower-third band, base
   spans the phrase window while highlights sweep word-to-word, all within clip bounds. word_pop
   regression: still 25 clips at `("center", y)` (color-param generalization is safe). Dispatch:
@@ -496,9 +496,13 @@ and clips render in that style. ✅
   → orchestrator → clip dict, **without changing the locked `renderer.render` signature**. SRT stays
   style-independent. Config tunables `CAPTION_STYLE(S)`, `CAPTION_HORMOZI_MAX_WORDS/_WORD_SPACING/_LINE_SPACING`.
   Verified with real moviepy 2.2.1 against `sample_transcript.json` (25 words → 50 base+highlight clips,
-  phrases ≤4 / sentence-aware, positions in-bounds and centered, karaoke timing correct), word_pop
-  regression intact, dispatch + fallback correct, Job field + dropdown render confirmed; full ffmpeg
-  E2E deferred (heavy deps absent in sandbox). See Post-v1 → B1 and the `[B1 → captions/render]` carry-forward.
+  ≤3-word sentence-aware phrases, positions in-bounds and centered, karaoke timing correct), word_pop
+  regression intact, dispatch + fallback correct, Job field + dropdown render confirmed. **Also ran a
+  real `renderer.render` pass** (synthetic source + hand-built clip) → valid 1080×1920 MP4s for both
+  styles with audio, frames confirming the phrase line + purple-highlighted spoken word, multi-line
+  wrapping, and word_pop's single word; SRT skipped gracefully when `pysrt` is absent (best-effort path
+  confirmed live). `CAPTION_HORMOZI_MAX_WORDS` set to **3** for comfortable side margins. See Post-v1 → B1
+  and the `[B1 → captions/render]` carry-forward.
 - **2026-06-08** — **B3: virality grade in the UI** (branch `feature/virality-score`, first
   post-v1 feature). Surfaced the per-clip score the scorer already computes as a 0–100 + A–F
   grade with a per-signal breakdown — no new modeling, fully local. Added `scorer.grade` +
