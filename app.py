@@ -58,7 +58,13 @@ def create_app() -> Flask:
             return jsonify(error=f"Unsupported file type. Allowed: {allowed}"), 400
 
         safe_name = secure_filename(file.filename) or "video"
-        job = JOBS.create(filename=safe_name)
+
+        # Optional per-job caption style (B1). Missing/unknown → default; never
+        # reject the upload over this (progressive enhancement).
+        style = (request.form.get("caption_style") or CONFIG.CAPTION_STYLE).lower()
+        if style not in CONFIG.CAPTION_STYLES:
+            style = CONFIG.CAPTION_STYLE
+        job = JOBS.create(filename=safe_name, caption_style=style)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id
         job_dir.mkdir(parents=True, exist_ok=True)

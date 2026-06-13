@@ -2,10 +2,12 @@
 
 Burns word-synced captions onto a rendered clip and writes a matching ``.srt``.
 
-Style (see RESEARCH.md, Option B): one large word at a time, centered, with a
-quick pop-in scale — the classic viral-shorts look. moviepy's ``TextClip`` gives
-full color control (the spoken word is drawn in the accent ``CAPTION_HIGHLIGHT_COLOR``
-with a thick stroke for readability), at the cost of per-word compositing.
+Two styles (B1, selected by ``CONFIG.CAPTION_STYLE`` or a per-clip
+``clip["caption_style"]``): "hormozi" (default) shows a short phrase with the
+spoken word highlighted in the accent ``CAPTION_HIGHLIGHT_COLOR`` (karaoke feel);
+"word_pop" shows one large word at a time with a quick pop-in scale (the original
+Phase-5 look). Both use moviepy's ``TextClip`` for full per-word colour control
+with a thick stroke for readability, at the cost of per-word compositing.
 
 Contract & timeline (see progress.md ``[Phase 4 → Phase 5]`` carry-forward):
 ``apply_captions`` is called inside ``renderer.render`` *after* the clip has been
@@ -62,16 +64,20 @@ def _pop_scale(t: float) -> float:
     return 0.7 + 0.3 * eased
 
 
-def _make_text_clip(text: str):
+def _make_text_clip(text: str, color: str | None = None):
     """Build a single centered word ``TextClip``, shrinking the font if it overflows.
 
-    Returns the TextClip (duration unset) or ``None`` if the font can't render it.
+    ``color`` defaults to the accent ``CAPTION_HIGHLIGHT_COLOR`` (the word_pop
+    look); the hormozi style passes the inactive (``CAPTION_COLOR``) or active
+    (highlight) colour explicitly. Returns the TextClip (duration unset) or
+    ``None`` if the font can't render it.
     """
     from moviepy import TextClip
 
     if CONFIG.CAPTION_UPPERCASE:
         text = text.upper()
 
+    color = color or CONFIG.CAPTION_HIGHLIGHT_COLOR
     font = str(CONFIG.CAPTION_FONT)
     size = CONFIG.CAPTION_FONT_SIZE
     max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * CONFIG.TARGET_WIDTH
@@ -81,7 +87,7 @@ def _make_text_clip(text: str):
             font,
             text,
             font_size=font_size,
-            color=CONFIG.CAPTION_HIGHLIGHT_COLOR,
+            color=color,
             stroke_color=CONFIG.CAPTION_STROKE_COLOR,
             stroke_width=CONFIG.CAPTION_STROKE_WIDTH,
             method="label",
@@ -137,6 +143,149 @@ def build_word_clips(words_local: list[dict], clip_duration: float) -> list:
         if CONFIG.CAPTION_POP_DURATION > 0:
             tc = tc.resized(_pop_scale)
         clips.append(tc)
+
+    return clips
+
+
+def _group_phrases(words_local: list[dict], max_words: int) -> list[list[dict]]:
+    """Group local words into short phrases for the hormozi line display.
+
+    Breaks a phrase when it reaches ``max_words`` *or* a word ends a sentence
+    (reusing ``_SENTENCE_END``). Returns a list of word-lists; ``[]`` for empty
+    input. Hormozi-only — ``write_srt`` keeps its own (7-word) grouping so the
+    locked SRT contract is untouched.
+    """
+    if max_words < 1:
+        max_words = 1
+    phrases: list[list[dict]] = []
+    group: list[dict] = []
+    for word in words_local:
+        group.append(word)
+        ends_sentence = word["word"].rstrip().endswith(_SENTENCE_END)
+        if len(group) >= max_words or ends_sentence:
+            phrases.append(group)
+            group = []
+    if group:
+        phrases.append(group)
+    return phrases
+
+
+def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
+    """Build positioned, timed multi-word "karaoke" caption overlays.
+
+    Each phrase (short word group) is laid out as a centered, wrap-capable line
+    in the lower third. Every word gets a white BASE clip spanning the phrase's
+    whole visible window, plus a highlight clip (accent ``CAPTION_HIGHLIGHT_COLOR``)
+    at the *same* (x, y) spanning only that word's spoken interval, composited on
+    top — so the highlight sweeps word to word. Per-word / per-phrase failures
+    are skipped rather than raised.
+    """
+    if clip_duration <= 0:
+        return []
+
+    phrases = _group_phrases(words_local, CONFIG.CAPTION_HORMOZI_MAX_WORDS)
+    if not phrases:
+        return []
+
+    target_center_y = CONFIG.CAPTION_POSITION_RATIO * CONFIG.TARGET_HEIGHT
+    max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * CONFIG.TARGET_WIDTH
+    word_spacing = CONFIG.CAPTION_HORMOZI_WORD_SPACING
+    line_spacing = CONFIG.CAPTION_HORMOZI_LINE_SPACING
+
+    clips: list = []
+    num_phrases = len(phrases)
+
+    for pi, phrase in enumerate(phrases):
+        # --- Phrase visible window: hold until the next phrase appears (no flicker).
+        phrase_start = phrase[0]["start"]
+        if pi + 1 < num_phrases:
+            phrase_end = phrases[pi + 1][0]["start"]
+        else:
+            phrase_end = min(clip_duration, phrase[-1]["end"] + CONFIG.CAPTION_SYNC_TOLERANCE)
+        phrase_end = min(phrase_end, clip_duration)
+        phrase_window = phrase_end - phrase_start
+        if phrase_window <= 0:
+            continue
+
+        # --- Build the white base clip for each word and measure it.
+        built: list[dict] = []  # {idx, word, base, w, h}
+        for idx, word in enumerate(phrase):
+            try:
+                base = _make_text_clip(word["word"], color=CONFIG.CAPTION_COLOR)
+            except Exception:  # noqa: BLE001 - bad glyph/font → drop this word
+                continue
+            if base is None:
+                continue
+            built.append({"idx": idx, "word": word, "base": base, "w": base.w, "h": base.h})
+        if not built:
+            continue
+
+        # --- Greedy wrap into lines that fit the safe width.
+        lines: list[list[dict]] = []
+        current: list[dict] = []
+        current_w = 0.0
+        for item in built:
+            add_w = item["w"] + (word_spacing if current else 0)
+            if current and current_w + add_w > max_width:
+                lines.append(current)
+                current = [item]
+                current_w = item["w"]
+            else:
+                current.append(item)
+                current_w += add_w
+        if current:
+            lines.append(current)
+
+        # --- Vertical stack: center the whole block on the lower-third line.
+        line_heights = [max(it["h"] for it in line) for line in lines]
+        total_h = sum(line_heights) + line_spacing * (len(lines) - 1)
+        block_top = target_center_y - total_h / 2.0
+
+        y_cursor = block_top
+        for li, line in enumerate(lines):
+            line_h = line_heights[li]
+            line_w = sum(it["w"] for it in line) + word_spacing * (len(line) - 1)
+            x_cursor = (CONFIG.TARGET_WIDTH - line_w) / 2.0
+            y = int(round(y_cursor))
+
+            for it in line:
+                x = int(round(x_cursor))
+                word = it["word"]
+                idx = it["idx"]
+
+                # Base (white) for the full phrase window.
+                base = (
+                    it["base"]
+                    .with_start(phrase_start)
+                    .with_duration(phrase_window)
+                    .with_position((x, y))
+                )
+                clips.append(base)
+
+                # Highlight (accent) only while this word is spoken. The phrase's
+                # last word stays lit until the phrase swaps out.
+                hl_start = word["start"]
+                if idx + 1 < len(phrase):
+                    hl_end = phrase[idx + 1]["start"]
+                else:
+                    hl_end = phrase_end
+                hl_start = max(hl_start, phrase_start)
+                hl_end = min(hl_end, phrase_end)
+                if hl_end - hl_start > 0:
+                    try:
+                        hl = _make_text_clip(word["word"], color=CONFIG.CAPTION_HIGHLIGHT_COLOR)
+                    except Exception:  # noqa: BLE001 - keep the white base, skip highlight
+                        hl = None
+                    if hl is not None:
+                        hl = (
+                            hl.with_start(hl_start)
+                            .with_duration(hl_end - hl_start)
+                            .with_position((x, y))
+                        )
+                        clips.append(hl)  # after base → drawn on top
+
+                x_cursor += it["w"] + word_spacing
+            y_cursor += line_h + line_spacing
 
     return clips
 
@@ -198,7 +347,11 @@ def apply_captions(final_clip, clip: dict, out_dir: Path, mp4_path: Path):
     try:
         from moviepy import CompositeVideoClip
 
-        word_clips = build_word_clips(words_local, float(final_clip.duration))
+        style = (clip.get("caption_style") or CONFIG.CAPTION_STYLE or "word_pop").lower()
+        if style not in CONFIG.CAPTION_STYLES:
+            style = "word_pop"  # defensive: never trust an unknown style
+        builder = build_hormozi_clips if style == "hormozi" else build_word_clips
+        word_clips = builder(words_local, float(final_clip.duration))
         if not word_clips:
             return final_clip
         composite = CompositeVideoClip([final_clip, *word_clips])

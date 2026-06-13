@@ -63,6 +63,8 @@ form.addEventListener("submit", async (event) => {
 
   const data = new FormData();
   data.append("video", fileInput.files[0]);
+  const styleSel = document.getElementById("caption-style");
+  if (styleSel) data.append("caption_style", styleSel.value);
 
   setBusy(true);
   resultsSection.classList.add("hidden");

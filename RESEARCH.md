@@ -40,6 +40,16 @@ Running log of why we chose each approach. Filled in as modules are built.
   list skips the burn but still produces the MP4 and an `.srt`; a job never dies here.
 - Caption engine lives in `pipeline/captions.py` (text rendering + SRT I/O), kept out of
   `pipeline/effects.py` which stays focused on frame transforms.
+- **Multi-style update (B1, 2026-06-13):** the single-word-pop limitation noted above was
+  lifted. Added a **Hormozi** karaoke style — a short phrase (`_group_phrases`, ≤`CAPTION_HORMOZI_MAX_WORDS`,
+  sentence-aware) laid out as a centered, wrap-capable line with the spoken word highlighted in
+  #7C3AED over white siblings. The per-word horizontal layout/wrapping math that Option B
+  originally avoided is done here by measuring each word's `TextClip.w/.h` (available
+  pre-composite) and greedily packing/centering lines; the karaoke sweep is two clips per word
+  (white base over the phrase window + a purple highlight over the spoken interval, composited on
+  top — later = on top), so no per-word scaling that would shift the absolute layout. Style is
+  chosen by `CONFIG.CAPTION_STYLE` (default `hormozi`) or per-job via the clip dict; word_pop stays
+  available. SRT grouping is unchanged and style-independent.
 
 ## Effects (Module 4)
 - Punch-in zoom 1.0x -> 1.15x over ~1.5s via frame transform (cv2.resize + center crop).

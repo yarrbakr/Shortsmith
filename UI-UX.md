@@ -85,7 +85,7 @@ Legend: 📋 Planned · 🟡 In progress · ✅ Done
 | U4 | Virality grade on result cards | ✅ | Shipped with `Features.md` B3 — letter pill + "Virality NN" + *relative* "Stands out" signal + score bar + collapsible per-signal breakdown. Grade colours are a deliberate green→red data-viz ramp (exception to "one brand purple"). Confirmed live. |
 | U5 | Results card polish | 📋 | Hover lift, quick actions (Download MP4/SRT, copy captions), nicer loading skeletons. |
 | U6 | More alive progress | 📋 | Per-stage state + incremental "clips ready" count as they finish. |
-| U7 | "Advanced options" panel | 📋 | Host future controls: caption style (B1), aspect preset (B5), music toggle (B6), silence-trim (B2). |
+| U7 | "Advanced options" panel | 🟡 | **Seeded by B1 (2026-06-13):** an "Advanced options" `<details>` reveal now hosts the caption-style `<select>` (Hormozi default / word-pop), using the existing `details/summary` pattern. Still to add: aspect preset (B5), music toggle (B6), silence-trim (B2). |
 | U8 | Micro-interactions & transitions | 📋 | Subtle dropzone hover, chip fills, card entrance — restrained, not flashy. |
 
 > As pipeline features (B1, B5, B6, …) land, their UI controls slot into **U7** and get ticked

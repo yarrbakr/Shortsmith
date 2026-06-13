@@ -350,6 +350,62 @@ we don't over-tune against one near-uniform sample.
 
 ---
 
+### B1 — Multiple caption styles ✅ (branch `feature/caption-styles`, dev on `claude/eager-ride-707rtd`)
+**Depends on:** Phase 5 (caption engine) + Phase 6 (UI). **Goal:** add a **Hormozi**
+multi-word/karaoke caption style (a short phrase on screen with the spoken word
+highlighted in brand purple `#7C3AED`, the rest white) alongside the existing
+single-word **word_pop**, selectable via config/env *and* a new UI dropdown. Pure
+rendering on top of the existing word-level timestamps — no new modeling, fully local.
+
+**Deliverables:**
+- [x] `CONFIG.CAPTION_STYLE` selector + `CAPTION_STYLES` registry (`{"word_pop","hormozi"}`),
+      default flipped to **`hormozi`**; Hormozi tunables `CAPTION_HORMOZI_MAX_WORDS` (3,
+      for comfortable side margins), `_WORD_SPACING` (24px), `_LINE_SPACING` (16px) — all env-overridable.
+- [x] `captions.build_hormozi_clips` — groups words into ≤`MAX_WORDS` phrases (also break
+      on sentence punctuation via `_group_phrases`), lays each phrase out as a centered,
+      wrap-capable line in the lower third; each word gets a **white base** clip spanning
+      the phrase window + an accent-purple **highlight** at the same `(x,y)` spanning only
+      its spoken interval (composited on top → karaoke sweep). Reuses the now-unused
+      `CAPTION_COLOR` for inactive words.
+- [x] `_make_text_clip` generalized to take a `color` (back-compat: word_pop unchanged).
+- [x] Style dispatch in `apply_captions` (reads `clip.get("caption_style") or CONFIG.CAPTION_STYLE`,
+      unknown → `word_pop` fallback). SRT stays style-independent.
+- [x] Per-job override plumbed UI → job → orchestrator → captions **without changing the
+      locked `renderer.render` signature** (style rides on the clip dict).
+- [x] UI: "Advanced options" `<details>` reveal with a caption-style `<select>` (Hormozi
+      default); `app.js` appends it to the upload FormData; `/upload` reads/validates it.
+
+**Done when:** a user can pick Hormozi vs word-pop in the UI (or via `SHORTSMITH_CAPTION_STYLE`)
+and clips render in that style. ✅
+
+**Notes:**
+- **No render-contract change (carry-forward below).** The clip dict already flows
+  scorer → selector → orchestrator → `renderer.render` → `apply_captions`, so the orchestrator
+  stamps `clip["caption_style"]` and captions read it — `renderer.render(video_path, clip, out_dir)`
+  is untouched.
+- **Default flipped to Hormozi** (was word_pop in Phase 5) per product decision; word_pop stays
+  fully available via the dropdown / `SHORTSMITH_CAPTION_STYLE=word_pop`.
+- **Brand purple preserved:** highlight = `CAPTION_HIGHLIGHT_COLOR` (#7C3AED); inactive words =
+  `CAPTION_COLOR` (white) — honors UI-UX.md's "one brand purple". Hormozi deliberately drops the
+  `_pop_scale` (the colour sweep is the animation; per-word scaling would shift the absolute
+  `(x,y)` layout).
+- **Robustness unchanged:** per-word/per-phrase `TextClip` failures skip just that unit; the
+  outer `apply_captions` best-effort guard still keeps the MP4 + SRT on any failure.
+- **The Advanced-options reveal seeds UI-UX.md U7** (future home for aspect/music/silence-trim
+  controls) using the existing `details/summary` pattern.
+- Verified with real moviepy 2.2.1 against `sample_transcript.json` (segment "Here is the
+  secret nobody tells you…", 25 words): `_group_phrases` groups into ≤3-word, sentence-aware
+  phrases; `build_hormozi_clips` → **50 clips** (25 white base + 25 purple
+  highlight), all `(x,y)` ints with `0≤x≤1080`, y centered on the 0.72 lower-third band, base
+  spans the phrase window while highlights sweep word-to-word, all within clip bounds. word_pop
+  regression: still 25 clips at `("center", y)` (color-param generalization is safe). Dispatch:
+  `hormozi`/`word_pop`/`None`(→default hormozi) route correctly, `bogus`→word_pop. `Job.caption_style`
+  create/update/`to_dict` works; the index page renders the Hormozi-default dropdown; template +
+  all changed modules compile/render clean. (Full ffmpeg E2E deferred — heavy pipeline deps not
+  installed in this CPU sandbox; layout/timing/dispatch unit-verified with real TextClips.)
+
+---
+
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
@@ -419,7 +475,34 @@ we don't over-tune against one near-uniform sample.
   default and toggle off via `SHORTSMITH_CAPTIONS=0`; the bundled font lives at
   `assets/fonts/Anton-Regular.ttf` (`CONFIG.CAPTION_FONT`).
 
+- **[B1 (post-v1) → captions/render] Caption style is per-job, carried on the clip dict.**
+  The orchestrator stamps `clip["caption_style"]` (from `Job.caption_style`, defaulting to
+  `CONFIG.CAPTION_STYLE`) before `renderer.render`; `apply_captions` reads it and dispatches to
+  `build_hormozi_clips` or `build_word_clips`. **The `renderer.render(video_path, clip, out_dir)`
+  signature is unchanged** — this is the chosen channel for any future per-job render option
+  (don't add render args; ride the clip dict). Allowed styles live in `CONFIG.CAPTION_STYLES`;
+  validate against it (unknown → `word_pop`). The **default caption style is now `hormozi`**
+  (was the implicit word_pop of Phase 5). `CAPTION_COLOR` (previously unused) is now consumed as
+  the inactive-word colour; `CAPTION_HIGHLIGHT_COLOR` (#7C3AED) remains the active/highlight colour.
+
 ## Changelog
+- **2026-06-13** — **B1: multiple caption styles** (branch `feature/caption-styles`, dev on
+  `claude/eager-ride-707rtd`). Added a **Hormozi** karaoke style (short phrase on screen, spoken
+  word highlighted in brand purple #7C3AED, rest white, wrap-capable centered lower-third) next to
+  the original single-word **word_pop**. New `captions.build_hormozi_clips` + `_group_phrases`;
+  generalized `_make_text_clip(color=…)` (word_pop unchanged); style dispatch in `apply_captions`
+  (unknown → word_pop). Selectable via `CONFIG.CAPTION_STYLE`/`SHORTSMITH_CAPTION_STYLE` (**default
+  flipped to `hormozi`**) and a new UI "Advanced options" dropdown plumbed `/upload` → `Job.caption_style`
+  → orchestrator → clip dict, **without changing the locked `renderer.render` signature**. SRT stays
+  style-independent. Config tunables `CAPTION_STYLE(S)`, `CAPTION_HORMOZI_MAX_WORDS/_WORD_SPACING/_LINE_SPACING`.
+  Verified with real moviepy 2.2.1 against `sample_transcript.json` (25 words → 50 base+highlight clips,
+  ≤3-word sentence-aware phrases, positions in-bounds and centered, karaoke timing correct), word_pop
+  regression intact, dispatch + fallback correct, Job field + dropdown render confirmed. **Also ran a
+  real `renderer.render` pass** (synthetic source + hand-built clip) → valid 1080×1920 MP4s for both
+  styles with audio, frames confirming the phrase line + purple-highlighted spoken word, multi-line
+  wrapping, and word_pop's single word; SRT skipped gracefully when `pysrt` is absent (best-effort path
+  confirmed live). `CAPTION_HORMOZI_MAX_WORDS` set to **3** for comfortable side margins. See Post-v1 → B1
+  and the `[B1 → captions/render]` carry-forward.
 - **2026-06-08** — **B3: virality grade in the UI** (branch `feature/virality-score`, first
   post-v1 feature). Surfaced the per-clip score the scorer already computes as a 0–100 + A–F
   grade with a per-signal breakdown — no new modeling, fully local. Added `scorer.grade` +

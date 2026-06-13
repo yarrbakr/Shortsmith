@@ -46,7 +46,11 @@ def run_pipeline(job_id: str) -> None:
         # The whole batch's per-signal scores, so each clip's "stands out"
         # signal is judged relative to its peers (B3).
         peer_components = [c.get("components") or {} for c in selected]
+        # Per-job caption style (B1) rides on the clip dict so the locked
+        # renderer.render signature stays unchanged; apply_captions reads it.
+        caption_style = job.caption_style or CONFIG.CAPTION_STYLE
         for index, clip in enumerate(selected):
+            clip["caption_style"] = caption_style
             out_path = renderer.render(video_path, clip, out_dir)
             components = clip.get("components")
             results.append({
