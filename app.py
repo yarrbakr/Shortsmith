@@ -64,7 +64,9 @@ def create_app() -> Flask:
         style = (request.form.get("caption_style") or CONFIG.CAPTION_STYLE).lower()
         if style not in CONFIG.CAPTION_STYLES:
             style = CONFIG.CAPTION_STYLE
-        job = JOBS.create(filename=safe_name, caption_style=style)
+        # Optional per-job filler/silence removal (B2); absent checkbox → off.
+        trim_silence = (request.form.get("trim_silence") or "").lower() in {"1", "true", "yes", "on"}
+        job = JOBS.create(filename=safe_name, caption_style=style, trim_silence=trim_silence)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id
         job_dir.mkdir(parents=True, exist_ok=True)
