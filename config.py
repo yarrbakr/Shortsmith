@@ -195,6 +195,73 @@ class Config:
     # legacy 9:16 width so the default render stays pixel-identical (ratio = 1.0).
     CAPTION_REFERENCE_WIDTH = 1080
 
+    # --- Auto-emojis on captions (B4) -------------------------------------
+    # When a spoken word matches CAPTION_EMOJI_KEYWORDS, a relevant emoji pops
+    # in just above the caption band (the short-form "reaction emoji over the
+    # word" look). 100% local: a static keyword->emoji dict, no AI/cloud.
+    # Opt-in (off by default); the Anton caption font has no emoji glyphs, so
+    # emojis are rasterized from a bundled colour-emoji font (Noto Color Emoji)
+    # and composited as image overlays. Best-effort: a missing font / glyph is
+    # silently skipped so captions + MP4 + SRT still render.
+    CAPTION_EMOJI_ENABLED = os.environ.get("SHORTSMITH_CAPTION_EMOJI", "0").lower() not in {"0", "false", "no"}
+    CAPTION_EMOJI_FONT: Path = _env_path(
+        "SHORTSMITH_CAPTION_EMOJI_FONT", BASE_DIR / "assets" / "fonts" / "NotoColorEmoji.ttf"
+    )
+    # Emoji height as a fraction of CAPTION_FONT_SIZE.
+    CAPTION_EMOJI_SIZE_RATIO = float(os.environ.get("SHORTSMITH_CAPTION_EMOJI_SIZE", "0.9"))
+    # Minimum seconds between two emojis so they accent rather than spam.
+    CAPTION_EMOJI_MIN_GAP = float(os.environ.get("SHORTSMITH_CAPTION_EMOJI_GAP", "2.0"))
+    # Vertical px gap between the emoji and the top of the caption band.
+    CAPTION_EMOJI_MARGIN = int(os.environ.get("SHORTSMITH_CAPTION_EMOJI_MARGIN", "24"))
+    # Keyword -> emoji map. Keys are normalized single words (lower-case, no
+    # punctuation) matched against each spoken word. Mixed English + a few
+    # Roman-Urdu hits to mirror the bilingual scorer lists. Like FILLER_WORDS,
+    # this is a hardcoded dict (not env-overridable).
+    CAPTION_EMOJI_KEYWORDS = {
+        # reactions / emphasis
+        "fire": "🔥", "lit": "🔥", "hot": "🔥",
+        "love": "❤️", "loved": "❤️", "heart": "❤️",
+        "wow": "🤯", "crazy": "🤯", "insane": "🤯", "mindblowing": "🤯",
+        "best": "🏆", "win": "🏆", "winner": "🏆", "champion": "🏆",
+        "stop": "🛑", "never": "🚫", "dont": "🚫",
+        "secret": "🤫", "secrets": "🤫",
+        "idea": "💡", "ideas": "💡", "smart": "💡", "genius": "💡",
+        "money": "💰", "cash": "💰", "rich": "💰", "profit": "💰", "paisa": "💰",
+        "time": "⏰", "fast": "⚡", "quick": "⚡", "speed": "⚡",
+        "boom": "💥", "huge": "💥", "big": "💥",
+        "yes": "✅", "correct": "✅", "right": "✅", "true": "✅",
+        "no": "❌", "wrong": "❌", "false": "❌",
+        "look": "👀", "watch": "👀", "see": "👀", "dekho": "👀",
+        "listen": "👂", "hear": "👂",
+        "think": "🧠", "brain": "🧠", "mind": "🧠",
+        "rocket": "🚀", "launch": "🚀", "grow": "📈", "growth": "📈", "growing": "📈",
+        "warning": "⚠️", "danger": "⚠️", "careful": "⚠️",
+        "amazing": "✨", "magic": "✨", "perfect": "✨",
+        "strong": "💪", "power": "💪", "powerful": "💪",
+        "goal": "🎯", "target": "🎯", "focus": "🎯",
+        "party": "🎉", "celebrate": "🎉",
+    }
+
+    # --- Filler / silence trim (B2) ---------------------------------------
+    # "Magic cut": splice out filler words/phrases (reusing FILLER_WORDS /
+    # FILLER_PHRASES) and collapse long inter-word silences from each clip.
+    # Off by default; enabled per-job (the Advanced-options checkbox) or
+    # globally here. Detection is purely word-timestamp based (deterministic).
+    SILENCE_TRIM_ENABLED = os.environ.get("SHORTSMITH_SILENCE_TRIM", "0").lower() in {"1", "true", "yes"}
+    # Also strip filler WORDS/PHRASES (not just silences).
+    SILENCE_REMOVE_FILLERS = os.environ.get("SHORTSMITH_REMOVE_FILLERS", "1").lower() not in {"0", "false", "no"}
+    # Inter-word gap (s) above which the silence is cut out (a real pause -> splice);
+    # gaps at/below this are kept so natural rhythm survives.
+    SILENCE_GAP_THRESHOLD = float(os.environ.get("SHORTSMITH_SILENCE_GAP", "0.6"))
+    # Padding (s) kept around each retained word so cuts don't clip phonemes.
+    SILENCE_PAD = float(os.environ.get("SHORTSMITH_SILENCE_PAD", "0.06"))
+    # Floor: if the trimmed clip would be shorter than this, skip trimming.
+    SILENCE_MIN_KEPT_DURATION = float(os.environ.get("SHORTSMITH_SILENCE_MIN_KEPT", "5.0"))
+    # Don't bother trimming if it saves less than this many seconds.
+    SILENCE_MIN_SAVINGS = float(os.environ.get("SHORTSMITH_SILENCE_MIN_SAVINGS", "0.2"))
+    # Cap on keep-range fragments; above this, fall back to a full render.
+    SILENCE_MAX_FRAGMENTS = int(os.environ.get("SHORTSMITH_SILENCE_MAX_FRAGMENTS", "40"))
+
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("SHORTSMITH_SECRET_KEY", "dev-key-change-me")
     HOST = os.environ.get("SHORTSMITH_HOST", "127.0.0.1")

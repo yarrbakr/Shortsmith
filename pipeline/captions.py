@@ -22,12 +22,29 @@ must never die here.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from config import CONFIG
 
 # Trailing sentence punctuation marks a natural SRT cue boundary.
 _SENTENCE_END = (".", "?", "!", "…", ":")
+
+# Strip all non-word characters (incl. apostrophes) for emoji keyword lookup.
+_EMOJI_PUNCT_RE = re.compile(r"[^\w]+", re.UNICODE)
+
+
+def _normalize(word: str) -> str:
+    """Lower-case a word with surrounding punctuation removed (mirrors scorer)."""
+    return _EMOJI_PUNCT_RE.sub("", word.lower())
+
+
+def _emoji_for(word: str) -> str | None:
+    """Return the emoji mapped to a spoken word, or ``None``.
+
+    Matches on the normalized token against ``CONFIG.CAPTION_EMOJI_KEYWORDS``.
+    """
+    return CONFIG.CAPTION_EMOJI_KEYWORDS.get(_normalize(word))
 
 
 def _local_words(clip: dict) -> list[dict]:
@@ -339,6 +356,104 @@ def write_srt(words_local: list[dict], out_path: Path) -> None:
     subs.save(str(out_path), encoding="utf-8")
 
 
+def _make_emoji_clip(emoji: str, size_px: int):
+    """Rasterize an emoji from the bundled colour font into a transparent ``ImageClip``.
+
+    The caption font (Anton) has no emoji glyphs and moviepy's PIL text path does
+    no font fallback, so emojis are drawn separately. Renders at Noto Color
+    Emoji's native bitmap strike (109px) with PIL ``embedded_color``, tight-crops
+    to the glyph, and scales to ``size_px``. Returns a moviepy ``ImageClip`` (RGBA,
+    transparent) or ``None`` on any failure (missing font / glyph / PIL error).
+    """
+    try:
+        import numpy as np
+        from moviepy import ImageClip
+        from PIL import Image, ImageDraw, ImageFont
+
+        strike = 109  # Noto Color Emoji ships a single 109px CBDT bitmap strike
+        font = ImageFont.truetype(str(CONFIG.CAPTION_EMOJI_FONT), strike)
+        canvas = Image.new("RGBA", (strike * 2, strike * 2), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        draw.text((strike // 2, strike // 2), emoji, font=font, embedded_color=True)
+
+        bbox = canvas.getbbox()
+        if bbox is None:  # nothing rendered (e.g. missing glyph) → no emoji
+            return None
+        glyph = canvas.crop(bbox)
+
+        size_px = max(1, int(size_px))
+        scale = size_px / glyph.height
+        new_w = max(1, int(round(glyph.width * scale)))
+        glyph = glyph.resize((new_w, size_px), Image.LANCZOS)
+
+        return ImageClip(np.array(glyph), transparent=True)
+    except Exception:  # noqa: BLE001 - emojis are best-effort; skip on any failure
+        return None
+
+
+def build_emoji_clips(words_local: list[dict], clip_duration: float,
+                      frame_w: int, frame_h: int) -> list:
+    """Build emoji overlays above the caption band for keyword-matched words (B4).
+
+    Style-independent (used by both caption styles). At most one emoji per
+    ``CAPTION_EMOJI_MIN_GAP`` seconds so they accent rather than spam. Each emoji
+    shows from its word's start and lingers briefly (to the next word / word end +
+    ``CAPTION_SYNC_TOLERANCE``, capped at the clip end), centered horizontally just
+    above the caption band, with the same pop-in scale as the captions.
+    ``frame_w``/``frame_h`` are the actual rendered dimensions, so emoji size +
+    position track the chosen aspect preset (B5). Per-word failures are skipped
+    rather than raised.
+    """
+    if clip_duration <= 0 or not CONFIG.CAPTION_EMOJI_KEYWORDS:
+        return []
+
+    scale = frame_w / CONFIG.CAPTION_REFERENCE_WIDTH
+    font_px = CONFIG.CAPTION_FONT_SIZE * scale
+    size_px = max(1, int(round(CONFIG.CAPTION_EMOJI_SIZE_RATIO * font_px)))
+    caption_center_y = CONFIG.CAPTION_POSITION_RATIO * frame_h
+    # Sit the emoji above the top of a centered caption word.
+    y_top = int(round(
+        caption_center_y - font_px / 2.0 - size_px - CONFIG.CAPTION_EMOJI_MARGIN * scale
+    ))
+    y_top = max(0, y_top)
+
+    clips: list = []
+    n = len(words_local)
+    last_emoji_t = float("-inf")
+
+    for i, word in enumerate(words_local):
+        emoji = _emoji_for(word["word"])
+        if emoji is None:
+            continue
+        w_start = word["start"]
+        if w_start - last_emoji_t < CONFIG.CAPTION_EMOJI_MIN_GAP:
+            continue  # density cap
+
+        if i + 1 < n:
+            w_end = words_local[i + 1]["start"]
+        else:
+            w_end = word["end"] + CONFIG.CAPTION_SYNC_TOLERANCE
+        w_end = min(w_end, clip_duration)
+        duration = w_end - w_start
+        if duration <= 0:
+            continue
+
+        ec = _make_emoji_clip(emoji, size_px)
+        if ec is None:
+            continue
+        ec = (
+            ec.with_start(w_start)
+            .with_duration(duration)
+            .with_position(("center", y_top))
+        )
+        if CONFIG.CAPTION_POP_DURATION > 0:
+            ec = ec.resized(_pop_scale)
+        clips.append(ec)
+        last_emoji_t = w_start
+
+    return clips
+
+
 def apply_captions(final_clip, clip: dict, out_dir: Path, mp4_path: Path):
     """Overlay word-synced captions on ``final_clip`` and export the sibling SRT.
 
@@ -368,9 +483,21 @@ def apply_captions(final_clip, clip: dict, out_dir: Path, mp4_path: Path):
         frame_w, frame_h = final_clip.size
         builder = build_hormozi_clips if style == "hormozi" else build_word_clips
         word_clips = builder(words_local, float(final_clip.duration), frame_w, frame_h)
-        if not word_clips:
+
+        # Auto-emojis (B4): per-job toggle rides the clip dict; None → config
+        # default. Drawn on top of the captions, above the caption band. Passed
+        # the actual frame size (B5) so they track the chosen aspect preset.
+        emoji_clips: list = []
+        auto_emoji = clip.get("auto_emoji")
+        if auto_emoji is None:
+            auto_emoji = CONFIG.CAPTION_EMOJI_ENABLED
+        if auto_emoji and Path(CONFIG.CAPTION_EMOJI_FONT).is_file():
+            emoji_clips = build_emoji_clips(words_local, float(final_clip.duration), frame_w, frame_h)
+
+        overlays = [*word_clips, *emoji_clips]
+        if not overlays:
             return final_clip
-        composite = CompositeVideoClip([final_clip, *word_clips])
+        composite = CompositeVideoClip([final_clip, *overlays])
         composite = composite.with_duration(final_clip.duration)
         if final_clip.audio is not None:
             composite = composite.with_audio(final_clip.audio)

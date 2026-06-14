@@ -64,6 +64,11 @@ is a staple editing feature.
 - **Our take (HIGH value / LOW-MED effort):** we already have word-level timestamps **and**
   filler-word/phrase lists in the scorer. Removing them is timeline splicing — fully local.
   → **B2**.
+- **Shipped (2026-06-13):** `pipeline/trimmer.py` (`plan_trim`) computes keep-ranges + remapped
+  clip-local words; the renderer `concatenate_videoclips` the keep-ranges and feeds captions a
+  `start=0` remapped clip copy so subtitles stay synced (no render-contract change, captions.py
+  untouched). Word-gap based silence detection; filler audio is physically cut (a dropped filler
+  forces a split). Per-job toggle, default off. RMS dead-air detection deferred as a future pass.
 
 ### Auto-emojis
 Tools sprinkle context-relevant (sometimes animated) emojis onto captions.

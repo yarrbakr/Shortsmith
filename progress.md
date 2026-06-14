@@ -456,6 +456,122 @@ renders at that aspect's exact pixel dimensions. ✅
 
 ---
 
+### B4 — Auto-emojis on captions ✅ (branch `feature/auto-emoji`, dev on `claude/eager-hypatia-l3n5je`)
+**Depends on:** Phase 5 (caption engine) + Phase 6 (UI). **Goal:** when a spoken word
+matches a curated keyword dictionary, pop a relevant emoji in **above** the caption band
+(the short-form "reaction emoji over the word" look). 100% local — a static keyword→emoji
+dict, no AI/cloud — selectable via config/env *and* a new UI checkbox. **Opt-in (off by
+default).**
+
+**Deliverables:**
+- [x] `CONFIG.CAPTION_EMOJI_ENABLED` (default **off**, env `SHORTSMITH_CAPTION_EMOJI`) +
+      `CAPTION_EMOJI_KEYWORDS` (70-entry normalized single-word → emoji dict, English +
+      a few Roman-Urdu hits, hardcoded like `FILLER_WORDS`) + tunables
+      `CAPTION_EMOJI_FONT`/`_SIZE_RATIO`/`_MIN_GAP`/`_MARGIN` (all env-overridable).
+- [x] Bundled **Noto Color Emoji** (`assets/fonts/NotoColorEmoji.ttf`, SIL OFL) — the
+      caption font (Anton) has no emoji glyphs and moviepy's PIL text path does no font
+      fallback, so emojis are rasterized separately.
+- [x] `captions._make_emoji_clip` — PIL renders the glyph at Noto's native 109px CBDT
+      strike with `embedded_color=True`, tight-crops via `getbbox`, scales to size, wraps
+      as a transparent moviepy `ImageClip`. Best-effort → `None` on missing font/glyph.
+- [x] `captions.build_emoji_clips` — style-independent overlay builder: ≤1 emoji per
+      `CAPTION_EMOJI_MIN_GAP` seconds (density cap), timed to the matched word with a short
+      linger, centered horizontally just above the caption band, same `_pop_scale` pop-in.
+- [x] `apply_captions` composites emoji clips on top of the captions (works for both
+      `hormozi` and `word_pop`); SRT export untouched (emoji never enters subtitles).
+- [x] Per-job toggle plumbed UI → `/upload` → `Job.auto_emoji` → orchestrator → clip dict
+      → captions **without changing the locked `renderer.render` signature**.
+- [x] UI: "Advanced options" gains an `Auto-emojis` checkbox (unchecked); `app.js` appends
+      it to the upload FormData; `/upload` reads/parses it (absent → config default).
+
+**Done when:** a user can enable auto-emojis in the UI (or via `SHORTSMITH_CAPTION_EMOJI=1`)
+and keyword-matched words render a relevant emoji above the caption. ✅
+
+**Notes:**
+- **No render-contract change (carry-forward below).** Mirrors B1 exactly: `auto_emoji`
+  rides `clip["auto_emoji"]`; `apply_captions` reads it (None → `CONFIG.CAPTION_EMOJI_ENABLED`).
+- **Boolean resolution, not `or`.** Orchestrator uses
+  `job.auto_emoji if job.auto_emoji is not None else CONFIG.CAPTION_EMOJI_ENABLED` (an `or`
+  would mishandle an explicit `False`); `/upload` maps absent→`None`, else truthy string.
+- **Opt-in** so existing output is unchanged by default and the feature degrades cleanly if
+  the emoji font is absent (no emojis, captions + MP4 + SRT still render — the Phase-5 best-
+  effort pattern).
+- **Single bundled font, any emoji.** Noto Color Emoji covers the whole dict, so editing the
+  keyword map needs no new per-emoji assets. ~10.6 MB committed under `assets/` (not
+  gitignored) so a fresh clone works offline; attribution in `assets/fonts/NOTICE.txt`.
+- **Brand-purple untouched:** emojis are full-colour glyphs above the band; the caption colour
+  system (`CAPTION_COLOR`/`CAPTION_HIGHLIGHT_COLOR`) is unchanged.
+- Verified in this CPU sandbox (heavy moviepy/ffmpeg deps not installed — full E2E deferred as
+  in B1): config loads the 70-keyword map; `_emoji_for`/`_normalize` match case/punctuation/
+  Roman-Urdu and reject non-keywords; the **real Noto font rasterizes** 🔥💰❤️⚠️👀🤯 (incl.
+  multi-codepoint VS-16 emoji) to full-alpha RGBA glyphs via PIL `embedded_color`;
+  `build_emoji_clips` honours the 2.0 s density cap (3 near-duplicate hits → 2 clips),
+  positions emojis above the caption band with in-bounds coords, and returns `[]` for empty/
+  no-match input. All changed modules byte-compile; `app.js` passes `node --check`; the index
+  template carries the unchecked checkbox.
+
+---
+
+### B2 — Filler-word & silence removal ✅ (branch `feature/silence-trim`, dev on `claude/eager-ride-707rtd`)
+**Depends on:** Phase 2 (word timestamps) + Phase 3 (filler lists) + Phase 4 (render). **Goal:**
+a "magic cut" that splices out filler words/phrases and collapses long inter-word silences from
+each clip, tightening the short. Pure timeline splicing on data we already have — no new models,
+fully local/CPU.
+
+**User-confirmed scope:** remove **both fillers + silences**; **per-job toggle, default OFF**
+(opt-in); silence detected from **word-gap timing** (deterministic; RMS dead-air deferred).
+
+**Deliverables:**
+- [x] `pipeline/trimmer.py` (new, pure — no moviepy/IO): `plan_trim(clip) -> dict | None` computes
+      source-timeline `keep_ranges` + clip-local **remapped words** + `duration`, or `None`
+      ("render unchanged"). Drops filler words/phrases (reusing `CONFIG.FILLER_WORDS`/`FILLER_PHRASES`
+      via the scorer's exact `_normalize`), and splits the timeline on inter-word gaps
+      `> SILENCE_GAP_THRESHOLD` **or** wherever a filler was dropped between two kept words (so filler
+      *audio* is physically cut, not just un-captioned). Piecewise word remap onto the spliced
+      `[0, duration]` timeline.
+- [x] `renderer.render` splice integration **without signature change**: if a plan exists,
+      `concatenate_videoclips([source.subclipped(s,e) …], method="chain")` *before* reframe/zoom, and
+      feed captions a `{**clip, "start":0.0, "end":duration, "words":plan["words"]}` so `_local_words`
+      passes the remap through — **`captions.py` unchanged**. Best-effort: any failure → original
+      single-subclip path. Fragments closed in `finally`. Filenames stay stable.
+- [x] Config tunables (`config.py`, env-overridable): `SILENCE_TRIM_ENABLED` (off), `SILENCE_REMOVE_FILLERS`
+      (on), `SILENCE_GAP_THRESHOLD` (0.6s), `SILENCE_PAD` (0.06s), `SILENCE_MIN_KEPT_DURATION` (5.0s),
+      `SILENCE_MIN_SAVINGS` (0.2s), `SILENCE_MAX_FRAGMENTS` (40).
+- [x] Per-job plumbing (mirrors B1): `Job.trim_silence` field; `/upload` reads a form checkbox;
+      orchestrator stamps `clip["trim_silence"]`; enable if per-job toggle **or** global flag.
+- [x] UI: "Remove filler words & silences" checkbox in the existing Advanced-options panel + one
+      `app.js` FormData line + minimal `.checkbox-field` CSS.
+
+**Done when:** with the toggle on, clips have fillers + long silences spliced out and captions/SRT
+stay synced. ✅
+
+**Notes:**
+- **`None` = zero behavior change.** When trimming is disabled / nothing removable / below the kept
+  floor / over-fragmented / savings too small, `plan_trim` returns `None` and the renderer uses the
+  exact original single-subclip path — the common case is untouched, no concat overhead.
+- **Two hard problems solved:** (1) re-stitching = concatenate keep-ranges before reframe/zoom (so the
+  size contract + effects run once on the spliced clip); (2) caption re-sync = piecewise word remap +
+  the `start=0` clip copy, keeping `captions.py` and the locked `renderer.render` signature intact
+  (B2 rides the clip dict like B1).
+- **Filler audio actually cut:** a filler dropped between two kept words forces a split regardless of
+  gap size, so "um" is physically removed (the pad + post-merge step coalesces splits too small to be
+  worth a cut).
+- **Honest caveats:** hard splices can produce faint audio clicks (softened by `SILENCE_PAD`; a
+  crossfade knob is deferred — it would complicate the remap); heuristic filler-list matching, not
+  semantic — conservative and fully tunable/disable-able. RMS dead-air detection deferred.
+- Verified with real moviepy 2.2.1: `plan_trim` unit test (clip `[0,20]` with "um", a "you know"
+  phrase, and a 4s gap → keep_ranges `[(0,1.66),(1.94,2.86),(3.54,5.86),(9.74,14.06)]`, duration
+  **9.22s**, fillers gone from audio *and* captions, words monotonic in `[0,duration]`); all guard
+  cases → `None`. **Real `renderer.render` pass:** 20s span → **9.22s** spliced 1080×1920 MP4 with
+  audio; a frame at local t=6.0s shows run-B caption "HERE IS STEP" (correctly shifted left),
+  confirming caption sync on the spliced clip and that Hormozi (B1) composes with B2;
+  `captions._local_words` of the spliced clip == the remapped plan words (SRT/caption-sync proof
+  without touching captions.py). Template renders the checkbox in Advanced options; `Job.trim_silence`
+  plumbing works. `pysrt` absent in the 3.11 sandbox → SRT write exercised via its best-effort guard;
+  cue math is the same remapped words (unit-verified).
+
+---
+
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
@@ -541,10 +657,33 @@ renders at that aspect's exact pixel dimensions. ✅
   validated against `CONFIG.ASPECT_PRESETS`; `renderer.render` resolves it to a `(w,h)` preset and
   passes `target_size` to `reframe_to_vertical`. **The `renderer.render(video_path, clip, out_dir)`
   signature is unchanged** — again the chosen channel for per-job render options (ride the clip dict,
-  don't add args). Caption builders + watermark now read `final_clip.size`/`clip.size` and scale
-  absolute pixel sizes by `width / CONFIG.CAPTION_REFERENCE_WIDTH` (fixed at 1080, so the 9:16 default
-  is byte-identical). **Any future code that positions an overlay MUST use the actual frame size,
+  don't add args). Caption builders + watermark + emoji overlays now read `final_clip.size`/`clip.size`
+  and scale absolute pixel sizes by `width / CONFIG.CAPTION_REFERENCE_WIDTH` (fixed at 1080, so the 9:16
+  default is byte-identical). **Any future code that positions an overlay MUST use the actual frame size,
   never `TARGET_WIDTH/HEIGHT`.** Filename/SRT stem are unchanged (one aspect per job → no collision).
+
+- **[B4 (post-v1) → captions/render] Auto-emoji is per-job, carried on the clip dict.**
+  The orchestrator stamps `clip["auto_emoji"]` (from `Job.auto_emoji`; `None` → resolved to
+  `CONFIG.CAPTION_EMOJI_ENABLED` with an explicit `is not None` check, **not** `or`) before
+  `renderer.render`; `apply_captions` reads it and composites `build_emoji_clips` overlays on
+  top of the captions. **The `renderer.render(video_path, clip, out_dir)` signature is
+  unchanged** — same channel as B1's `caption_style` (ride the clip dict; don't add render
+  args). Emojis render from the bundled **Noto Color Emoji** font (`CONFIG.CAPTION_EMOJI_FONT`)
+  because the Anton caption font has no emoji glyphs and moviepy's PIL text path does no font
+  fallback; the keyword→emoji map is `CONFIG.CAPTION_EMOJI_KEYWORDS` (matched on a normalized
+  single word). The feature is **opt-in** (`CAPTION_EMOJI_ENABLED` default off) and best-effort
+  (missing font/glyph → no emoji, MP4 + captions + SRT still produced). SRT is unaffected.
+
+- **[B2 (post-v1) → render/captions] Per-job filler/silence trim rides the clip dict; the renderer
+  splices keep-ranges.** The orchestrator stamps `clip["trim_silence"]` (from `Job.trim_silence`);
+  `renderer.render` calls `trimmer.plan_trim(clip)` and, when it returns a plan, builds the clip by
+  `concatenate_videoclips` over `plan["keep_ranges"]` instead of one `subclipped` — **the
+  `renderer.render(video_path, clip, out_dir)` signature is unchanged**. Captions stay synced because
+  the renderer passes `apply_captions` a `{**clip, "start":0.0, "end":plan["duration"],
+  "words":plan["words"]}` view (the words are pre-remapped onto the spliced clip-local timeline), so
+  **`captions.py`/`_local_words` need no changes**. `plan_trim` returning `None` is the contract for
+  "render exactly as before". Any future per-clip word-list transform (e.g. emoji injection B4) should
+  follow this same pattern: transform `words` + pass a clip copy, never change the render signature.
 
 ## Changelog
 - **2026-06-14** — **B5: platform export presets** (branch `feature/aspect-presets`, dev on
@@ -552,16 +691,47 @@ renders at that aspect's exact pixel dimensions. ✅
   (default 9:16, env `SHORTSMITH_ASPECT_RATIO`). New `CONFIG.ASPECT_PRESETS`/`ASPECT_RATIOS`/
   `ASPECT_RATIO`/`CAPTION_REFERENCE_WIDTH`; `effects.reframe_to_vertical(target_size=…)`. **Refactored
   downstream geometry to derive from the actual rendered frame** instead of the hardcoded 1080×1920
-  (a latent-bug fix *and* the B5 enabler): caption builders + `_make_text_clip` take `frame_w/frame_h`
-  and a `scale` (font/stroke/spacing/max-width), and `apply_watermark`/`_watermark_position` use the
-  real frame size + a scaled margin. Plumbed UI `<select name="aspect_ratio">` → `/upload` →
-  `Job.aspect_ratio` → orchestrator → clip dict, **without changing the locked `renderer.render`
-  signature**. The 9:16 default is pixel-identical (`scale==1.0`, frame dims == `TARGET_*`). Verified:
-  presets even + `9:16==TARGET`; all modules compile; `/health`; `Job.aspect_ratio` create/`to_dict`;
-  `/upload` accepts all four labels + falls back to 9:16 on bogus/missing; `reframe_to_vertical` crops
-  to the exact target and stays in-bounds across four source shapes with the default still 9:16. (Full
-  ffmpeg E2E + ffprobe dimension check deferred — heavy deps/ffmpeg not in this CPU sandbox.) See
-  Post-v1 → B5 and the `[B5 → captions/render/effects]` carry-forward.
+  (a latent-bug fix *and* the B5 enabler): caption builders + `_make_text_clip` + B4's `build_emoji_clips`
+  take `frame_w/frame_h` and a `scale` (font/stroke/spacing/max-width), and `apply_watermark`/
+  `_watermark_position` use the real frame size + a scaled margin. Plumbed UI `<select name="aspect_ratio">`
+  → `/upload` → `Job.aspect_ratio` → orchestrator → clip dict, **without changing the locked
+  `renderer.render` signature**. The 9:16 default is pixel-identical (`scale==1.0`, frame dims ==
+  `TARGET_*`). Verified end-to-end with **real ffmpeg 6.1.1 + moviepy 2.1.1**: rendered one MP4 per
+  preset and confirmed exact dimensions via moviepy `.size` *and* `ffprobe` (9:16→1080×1920, 1:1→1080×1080,
+  4:5→1080×1350, 16:9→1920×1080); word_pop + watermark on a 16:9 frame also correct. Plus presets even +
+  `9:16==TARGET`; modules compile; `/health`; `Job.aspect_ratio` create/`to_dict`; `/upload` accepts all
+  four labels + falls back to 9:16 on bogus/missing; `reframe_to_vertical` in-bounds across four source
+  shapes. See Post-v1 → B5 and the `[B5 → captions/render/effects]` carry-forward.
+- **2026-06-13** — **B4: auto-emojis on captions** (branch `feature/auto-emoji`, dev on
+  `claude/eager-hypatia-l3n5je`). When a spoken word matches a curated keyword dict, a relevant
+  emoji pops in **above** the caption band (short-form "reaction emoji over the word"). 100%
+  local: static `CONFIG.CAPTION_EMOJI_KEYWORDS` (70 entries, English + Roman-Urdu), no AI/cloud.
+  **Opt-in** (`SHORTSMITH_CAPTION_EMOJI` default off). Because Anton has no emoji glyphs and
+  moviepy's PIL text path does no font fallback, emojis are rasterized separately: bundled
+  **Noto Color Emoji** (`assets/fonts/NotoColorEmoji.ttf`, OFL) → `_make_emoji_clip` (PIL
+  `embedded_color` at the 109px CBDT strike, tight-crop, scale, transparent `ImageClip`) →
+  `build_emoji_clips` (style-independent; ≤1 emoji per `CAPTION_EMOJI_MIN_GAP` s, timed to the
+  word, centered above the band, `_pop_scale` pop-in). `apply_captions` composites emojis over
+  both caption styles; SRT untouched. Per-job toggle plumbed `/upload` → `Job.auto_emoji` →
+  orchestrator → `clip["auto_emoji"]` → captions, **without changing the locked `renderer.render`
+  signature**; UI gains an `Auto-emojis` checkbox in Advanced options. New config tunables
+  `CAPTION_EMOJI_ENABLED/_FONT/_SIZE_RATIO/_MIN_GAP/_MARGIN/_KEYWORDS`. Verified in-sandbox
+  (full ffmpeg E2E deferred as in B1): real Noto font rasterizes multi-codepoint emoji to RGBA
+  via PIL; matching + density-cap + above-band placement unit-checked; modules compile, `app.js`
+  passes `node --check`. See Post-v1 → B4 and the `[B4 → captions/render]` carry-forward.
+- **2026-06-13** — **B2: filler-word & silence removal** (branch `feature/silence-trim`, dev on
+  `claude/eager-ride-707rtd`). New `pipeline/trimmer.py` (`plan_trim`) computes keep-ranges + clip-local
+  remapped words from each clip's word timestamps, dropping filler words/phrases (reusing the scorer's
+  `FILLER_WORDS`/`FILLER_PHRASES` + `_normalize`) and collapsing inter-word silences `> SILENCE_GAP_THRESHOLD`
+  (and forcing a cut wherever a filler is dropped, so filler audio is physically removed). `renderer.render`
+  splices the keep-ranges via `concatenate_videoclips` before reframe/zoom and feeds captions a `start=0`
+  remapped clip copy — **no `renderer.render` signature change and `captions.py` untouched**. Per-job toggle
+  (default **off**) plumbed `/upload` → `Job.trim_silence` → orchestrator → clip dict, with an Advanced-options
+  checkbox. Config tunables `SILENCE_TRIM_ENABLED`/`_REMOVE_FILLERS`/`_GAP_THRESHOLD`/`_PAD`/`_MIN_KEPT_DURATION`/
+  `_MIN_SAVINGS`/`_MAX_FRAGMENTS`. Best-effort throughout (`plan_trim → None` or splice failure → original
+  single-subclip path). Verified: unit tests (fillers+gap removed, words remapped monotonic in-bounds, all
+  guards → None) and a real render (20s span → 9.22s spliced MP4, audio intact, captions synced on the spliced
+  clip, Hormozi composes). See Post-v1 → B2 and the `[B2 → render/captions]` carry-forward.
 - **2026-06-13** — **B1: multiple caption styles** (branch `feature/caption-styles`, dev on
   `claude/eager-ride-707rtd`). Added a **Hormozi** karaoke style (short phrase on screen, spoken
   word highlighted in brand purple #7C3AED, rest white, wrap-capable centered lower-third) next to

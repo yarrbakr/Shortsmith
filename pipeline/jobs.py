@@ -38,6 +38,8 @@ class Job:
     video_path: Path | None = None
     caption_style: str | None = None  # per-job caption style (B1); None → CONFIG default
     aspect_ratio: str | None = None  # per-job output aspect (B5); None → CONFIG default
+    auto_emoji: bool | None = None  # per-job auto-emoji toggle (B4); None → CONFIG default
+    trim_silence: bool = False  # per-job filler/silence removal (B2)
     results: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
@@ -52,6 +54,8 @@ class Job:
             "error": self.error,
             "caption_style": self.caption_style,
             "aspect_ratio": self.aspect_ratio,
+            "auto_emoji": self.auto_emoji,
+            "trim_silence": self.trim_silence,
             "results": self.results,
             "created_at": self.created_at,
         }
@@ -64,12 +68,24 @@ class JobManager:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
-    def create(self, filename: str, caption_style: str | None = None,
-               aspect_ratio: str | None = None) -> Job:
+    def create(
+        self,
+        filename: str,
+        caption_style: str | None = None,
+        aspect_ratio: str | None = None,
+        auto_emoji: bool | None = None,
+        trim_silence: bool = False,
+    ) -> Job:
         """Register a new job with a unique id and return it."""
         job_id = uuid.uuid4().hex
-        job = Job(id=job_id, filename=filename, caption_style=caption_style,
-                  aspect_ratio=aspect_ratio)
+        job = Job(
+            id=job_id,
+            filename=filename,
+            caption_style=caption_style,
+            aspect_ratio=aspect_ratio,
+            auto_emoji=auto_emoji,
+            trim_silence=trim_silence,
+        )
         with self._lock:
             self._jobs[job_id] = job
         return job
