@@ -406,6 +406,56 @@ and clips render in that style. ✅
 
 ---
 
+### B5 — Platform export presets ✅ (branch `feature/aspect-presets`, dev on `claude/adoring-galileo-3df5qv`)
+**Depends on:** Phase 4 (renderer/effects) + Phase 6 (UI). **Goal:** let the user pick **one**
+output aspect ratio per job from `{9:16, 1:1, 4:5, 16:9}` (default 9:16) so the same clips can
+ship to TikTok/Reels/Shorts (9:16), Instagram feed (1:1 / 4:5), and YouTube/web (16:9). Pure
+config-driven render dimensions — no new modeling, fully local.
+
+**Deliverables:**
+- [x] `CONFIG.ASPECT_PRESETS` (label → `(w,h)`, all even for yuv420p), `ASPECT_RATIOS` registry,
+      `ASPECT_RATIO` default (`9:16`, env-overridable via `SHORTSMITH_ASPECT_RATIO`, hard fallback
+      on unknown), and `CAPTION_REFERENCE_WIDTH` (1080) for proportional sizing. `9:16` reuses
+      `TARGET_WIDTH/HEIGHT`, so the default render is unchanged.
+- [x] `effects.reframe_to_vertical` takes an optional `target_size=(w,h)` (defaults to the 9:16
+      CONFIG dims); the cover-scale + focus-crop math was already fully parametric, so any aspect
+      works.
+- [x] **Downstream geometry now derives from the ACTUAL rendered frame, not `CONFIG.TARGET_*`**
+      (latent-bug fix + B5 enabler): `apply_captions` passes `final_clip.size` to the builders;
+      `build_word_clips`/`build_hormozi_clips` and `_make_text_clip` take `frame_w`/`frame_h` and a
+      `scale = frame_w / CAPTION_REFERENCE_WIDTH` so font/stroke/word+line spacing/max-width track
+      the frame; `apply_watermark`/`_watermark_position` use `clip.size` + a scaled margin.
+- [x] Per-job override plumbed UI → job → orchestrator → renderer **without changing the locked
+      `renderer.render` signature** (aspect rides the clip dict; renderer resolves it to a preset
+      and passes `target_size` to reframe).
+- [x] UI: a second `<select name="aspect_ratio">` in the existing "Advanced options" `<details>`
+      (9:16 default); `app.js` appends it to the upload FormData; `/upload` reads/validates it.
+
+**Done when:** a user can pick an aspect in the UI (or via `SHORTSMITH_ASPECT_RATIO`) and each clip
+renders at that aspect's exact pixel dimensions. ✅
+
+**Notes:**
+- **No render-contract change (carry-forward below).** The orchestrator stamps
+  `clip["aspect_ratio"]` (from `Job.aspect_ratio` → `CONFIG.ASPECT_RATIO`); the renderer reads it.
+  `renderer.render(video_path, clip, out_dir)` is untouched — same channel as B1's caption style.
+- **Default 9:16 is pixel-identical:** `9:16 == (TARGET_WIDTH, TARGET_HEIGHT)`, `CAPTION_REFERENCE_WIDTH
+  == 1080`, and `WATERMARK_WIDTH_RATIO * frame_w == * TARGET_WIDTH` on that path, so `scale == 1.0`
+  and every computed value equals the old constant — zero regression on the primary path.
+- **Latent bug fixed:** before B5, captions + watermark were hardcoded to 1080×1920 and would have
+  been mispositioned on any non-9:16 frame. They now read the real frame size, so any future overlay
+  must do the same (never `TARGET_WIDTH/HEIGHT`).
+- **Output filename unchanged** (`clip_<start*100>.mp4`): one aspect per job ⇒ no in-dir collision,
+  and the SRT-stem contract (Phase-5 carry-forward) is preserved.
+- **Validated** (CPU sandbox, no ffmpeg): config presets even + `9:16==TARGET`; all modules compile;
+  `/health` ok; `Job.aspect_ratio` create/`to_dict`; `/upload` accepts all four labels and falls back
+  to `9:16` on bogus/missing; `reframe_to_vertical(target_size=…)` crops to the exact target and stays
+  in-bounds for sources 1920×1080 / 1080×1920 / 640×480 / 2000×3000, with the default path still 9:16.
+  (Full ffmpeg E2E — render one MP4 per preset + ffprobe dimension check — deferred: heavy pipeline
+  deps + ffmpeg not installed here. Caption/watermark sizing changes are mechanical param-threading
+  and provably identical on the 9:16 default where `scale==1.0`.)
+
+---
+
 ## Open decisions (resolve as we go)
 > Decisions still *unresolved*. Once resolved, move the outcome to the Carry-forward log
 > below if it affects a later phase.
@@ -485,7 +535,33 @@ and clips render in that style. ✅
   (was the implicit word_pop of Phase 5). `CAPTION_COLOR` (previously unused) is now consumed as
   the inactive-word colour; `CAPTION_HIGHLIGHT_COLOR` (#7C3AED) remains the active/highlight colour.
 
+- **[B5 (post-v1) → captions/render/effects] Downstream geometry derives from the ACTUAL rendered
+  frame, not `CONFIG.TARGET_WIDTH/HEIGHT`.** Output aspect is per-job on the clip dict: the
+  orchestrator stamps `clip["aspect_ratio"]` (from `Job.aspect_ratio` → `CONFIG.ASPECT_RATIO`),
+  validated against `CONFIG.ASPECT_PRESETS`; `renderer.render` resolves it to a `(w,h)` preset and
+  passes `target_size` to `reframe_to_vertical`. **The `renderer.render(video_path, clip, out_dir)`
+  signature is unchanged** — again the chosen channel for per-job render options (ride the clip dict,
+  don't add args). Caption builders + watermark now read `final_clip.size`/`clip.size` and scale
+  absolute pixel sizes by `width / CONFIG.CAPTION_REFERENCE_WIDTH` (fixed at 1080, so the 9:16 default
+  is byte-identical). **Any future code that positions an overlay MUST use the actual frame size,
+  never `TARGET_WIDTH/HEIGHT`.** Filename/SRT stem are unchanged (one aspect per job → no collision).
+
 ## Changelog
+- **2026-06-14** — **B5: platform export presets** (branch `feature/aspect-presets`, dev on
+  `claude/adoring-galileo-3df5qv`). Added per-job output aspect ratio from `{9:16, 1:1, 4:5, 16:9}`
+  (default 9:16, env `SHORTSMITH_ASPECT_RATIO`). New `CONFIG.ASPECT_PRESETS`/`ASPECT_RATIOS`/
+  `ASPECT_RATIO`/`CAPTION_REFERENCE_WIDTH`; `effects.reframe_to_vertical(target_size=…)`. **Refactored
+  downstream geometry to derive from the actual rendered frame** instead of the hardcoded 1080×1920
+  (a latent-bug fix *and* the B5 enabler): caption builders + `_make_text_clip` take `frame_w/frame_h`
+  and a `scale` (font/stroke/spacing/max-width), and `apply_watermark`/`_watermark_position` use the
+  real frame size + a scaled margin. Plumbed UI `<select name="aspect_ratio">` → `/upload` →
+  `Job.aspect_ratio` → orchestrator → clip dict, **without changing the locked `renderer.render`
+  signature**. The 9:16 default is pixel-identical (`scale==1.0`, frame dims == `TARGET_*`). Verified:
+  presets even + `9:16==TARGET`; all modules compile; `/health`; `Job.aspect_ratio` create/`to_dict`;
+  `/upload` accepts all four labels + falls back to 9:16 on bogus/missing; `reframe_to_vertical` crops
+  to the exact target and stays in-bounds across four source shapes with the default still 9:16. (Full
+  ffmpeg E2E + ffprobe dimension check deferred — heavy deps/ffmpeg not in this CPU sandbox.) See
+  Post-v1 → B5 and the `[B5 → captions/render/effects]` carry-forward.
 - **2026-06-13** — **B1: multiple caption styles** (branch `feature/caption-styles`, dev on
   `claude/eager-ride-707rtd`). Added a **Hormozi** karaoke style (short phrase on screen, spoken
   word highlighted in brand purple #7C3AED, rest white, wrap-capable centered lower-third) next to

@@ -64,7 +64,13 @@ def create_app() -> Flask:
         style = (request.form.get("caption_style") or CONFIG.CAPTION_STYLE).lower()
         if style not in CONFIG.CAPTION_STYLES:
             style = CONFIG.CAPTION_STYLE
-        job = JOBS.create(filename=safe_name, caption_style=style)
+
+        # Optional per-job output aspect (B5). Missing/unknown → default; never
+        # reject the upload over this. Labels are case-sensitive (e.g. "16:9").
+        aspect = request.form.get("aspect_ratio") or CONFIG.ASPECT_RATIO
+        if aspect not in CONFIG.ASPECT_PRESETS:
+            aspect = CONFIG.ASPECT_RATIO
+        job = JOBS.create(filename=safe_name, caption_style=style, aspect_ratio=aspect)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id
         job_dir.mkdir(parents=True, exist_ok=True)

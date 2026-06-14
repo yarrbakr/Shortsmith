@@ -171,6 +171,30 @@ class Config:
     CAPTION_HORMOZI_WORD_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_WORD_SPACING", "24"))
     CAPTION_HORMOZI_LINE_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_LINE_SPACING", "16"))
 
+    # --- Platform export presets (B5) -------------------------------------
+    # One output aspect ratio per job, chosen from ASPECT_PRESETS (label ->
+    # (width, height) in px). Each preset's dimensions are even (required by
+    # libx264 yuv420p) and keep one side at the established 1080/1920 base. The
+    # default "9:16" reuses TARGET_WIDTH/TARGET_HEIGHT, so that render path is
+    # unchanged. Downstream caption/watermark geometry derives from the ACTUAL
+    # rendered frame (see captions.py / effects.py), scaled by width vs
+    # CAPTION_REFERENCE_WIDTH — never from TARGET_WIDTH/HEIGHT directly.
+    ASPECT_PRESETS = {
+        "9:16": (1080, 1920),  # vertical (default; identical to legacy render)
+        "1:1": (1080, 1080),   # square (Instagram feed)
+        "4:5": (1080, 1350),   # portrait (Instagram / Pinterest)
+        "16:9": (1920, 1080),  # landscape (YouTube / web)
+    }
+    ASPECT_RATIOS = tuple(ASPECT_PRESETS.keys())  # allowed registry
+    # Labels contain a colon and are case-sensitive — no .lower(). An unknown
+    # value would break rendering (no size), so fall back hard to the default.
+    ASPECT_RATIO = os.environ.get("SHORTSMITH_ASPECT_RATIO", "9:16")
+    if ASPECT_RATIO not in ASPECT_PRESETS:
+        ASPECT_RATIO = "9:16"
+    # Reference width for proportional caption/watermark sizing. Fixed at the
+    # legacy 9:16 width so the default render stays pixel-identical (ratio = 1.0).
+    CAPTION_REFERENCE_WIDTH = 1080
+
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("SHORTSMITH_SECRET_KEY", "dev-key-change-me")
     HOST = os.environ.get("SHORTSMITH_HOST", "127.0.0.1")

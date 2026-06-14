@@ -78,6 +78,8 @@ AI "audio matching" picks copyright-free tracks matching each segment's mood.
 ### Multi-format / aspect ratios
 Tools auto-adapt to 9:16, 1:1, 4:5, 16:9 per platform.
 - **Our take (LOW effort):** config-driven render dimensions + export presets. → **B5**.
+- **✅ Shipped (2026-06-14):** one aspect per job from {9:16, 1:1, 4:5, 16:9}, default 9:16.
+  See progress.md → Post-v1 → B5.
 
 ### Filler features we're NOT chasing
 Cloud publishing/scheduling, AI voice dubbing/translation, "ClipAnything" LLM semantic

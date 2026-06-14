@@ -65,6 +65,8 @@ form.addEventListener("submit", async (event) => {
   data.append("video", fileInput.files[0]);
   const styleSel = document.getElementById("caption-style");
   if (styleSel) data.append("caption_style", styleSel.value);
+  const aspectSel = document.getElementById("aspect-ratio");
+  if (aspectSel) data.append("aspect_ratio", aspectSel.value);
 
   setBusy(true);
   resultsSection.classList.add("hidden");

@@ -37,6 +37,7 @@ class Job:
     error: str | None = None
     video_path: Path | None = None
     caption_style: str | None = None  # per-job caption style (B1); None → CONFIG default
+    aspect_ratio: str | None = None  # per-job output aspect (B5); None → CONFIG default
     results: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
@@ -50,6 +51,7 @@ class Job:
             "message": self.message,
             "error": self.error,
             "caption_style": self.caption_style,
+            "aspect_ratio": self.aspect_ratio,
             "results": self.results,
             "created_at": self.created_at,
         }
@@ -62,10 +64,12 @@ class JobManager:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
-    def create(self, filename: str, caption_style: str | None = None) -> Job:
+    def create(self, filename: str, caption_style: str | None = None,
+               aspect_ratio: str | None = None) -> Job:
         """Register a new job with a unique id and return it."""
         job_id = uuid.uuid4().hex
-        job = Job(id=job_id, filename=filename, caption_style=caption_style)
+        job = Job(id=job_id, filename=filename, caption_style=caption_style,
+                  aspect_ratio=aspect_ratio)
         with self._lock:
             self._jobs[job_id] = job
         return job
