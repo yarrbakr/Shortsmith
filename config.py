@@ -218,6 +218,26 @@ class Config:
         "party": "🎉", "celebrate": "🎉",
     }
 
+    # --- Filler / silence trim (B2) ---------------------------------------
+    # "Magic cut": splice out filler words/phrases (reusing FILLER_WORDS /
+    # FILLER_PHRASES) and collapse long inter-word silences from each clip.
+    # Off by default; enabled per-job (the Advanced-options checkbox) or
+    # globally here. Detection is purely word-timestamp based (deterministic).
+    SILENCE_TRIM_ENABLED = os.environ.get("SHORTSMITH_SILENCE_TRIM", "0").lower() in {"1", "true", "yes"}
+    # Also strip filler WORDS/PHRASES (not just silences).
+    SILENCE_REMOVE_FILLERS = os.environ.get("SHORTSMITH_REMOVE_FILLERS", "1").lower() not in {"0", "false", "no"}
+    # Inter-word gap (s) above which the silence is cut out (a real pause -> splice);
+    # gaps at/below this are kept so natural rhythm survives.
+    SILENCE_GAP_THRESHOLD = float(os.environ.get("SHORTSMITH_SILENCE_GAP", "0.6"))
+    # Padding (s) kept around each retained word so cuts don't clip phonemes.
+    SILENCE_PAD = float(os.environ.get("SHORTSMITH_SILENCE_PAD", "0.06"))
+    # Floor: if the trimmed clip would be shorter than this, skip trimming.
+    SILENCE_MIN_KEPT_DURATION = float(os.environ.get("SHORTSMITH_SILENCE_MIN_KEPT", "5.0"))
+    # Don't bother trimming if it saves less than this many seconds.
+    SILENCE_MIN_SAVINGS = float(os.environ.get("SHORTSMITH_SILENCE_MIN_SAVINGS", "0.2"))
+    # Cap on keep-range fragments; above this, fall back to a full render.
+    SILENCE_MAX_FRAGMENTS = int(os.environ.get("SHORTSMITH_SILENCE_MAX_FRAGMENTS", "40"))
+
     # --- App ---------------------------------------------------------------
     SECRET_KEY = os.environ.get("SHORTSMITH_SECRET_KEY", "dev-key-change-me")
     HOST = os.environ.get("SHORTSMITH_HOST", "127.0.0.1")

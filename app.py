@@ -69,7 +69,11 @@ def create_app() -> Flask:
         # default); otherwise a truthy string. Never reject the upload over it.
         emoji_raw = request.form.get("auto_emoji")
         auto_emoji = None if emoji_raw is None else emoji_raw.lower() in {"1", "true", "on", "yes"}
-        job = JOBS.create(filename=safe_name, caption_style=style, auto_emoji=auto_emoji)
+
+        # Optional per-job filler/silence removal (B2); absent checkbox → off.
+        trim_silence = (request.form.get("trim_silence") or "").lower() in {"1", "true", "yes", "on"}
+        job = JOBS.create(filename=safe_name, caption_style=style,
+                          auto_emoji=auto_emoji, trim_silence=trim_silence)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id
         job_dir.mkdir(parents=True, exist_ok=True)

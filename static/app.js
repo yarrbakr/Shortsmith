@@ -67,6 +67,8 @@ form.addEventListener("submit", async (event) => {
   if (styleSel) data.append("caption_style", styleSel.value);
   const emojiToggle = document.getElementById("auto-emoji");
   if (emojiToggle) data.append("auto_emoji", emojiToggle.checked ? "1" : "0");
+  const trimEl = document.getElementById("trim-silence");
+  if (trimEl && trimEl.checked) data.append("trim_silence", "on");
 
   setBusy(true);
   resultsSection.classList.add("hidden");
