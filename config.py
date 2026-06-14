@@ -171,6 +171,53 @@ class Config:
     CAPTION_HORMOZI_WORD_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_WORD_SPACING", "24"))
     CAPTION_HORMOZI_LINE_SPACING = int(os.environ.get("SHORTSMITH_HORMOZI_LINE_SPACING", "16"))
 
+    # --- Auto-emojis on captions (B4) -------------------------------------
+    # When a spoken word matches CAPTION_EMOJI_KEYWORDS, a relevant emoji pops
+    # in just above the caption band (the short-form "reaction emoji over the
+    # word" look). 100% local: a static keyword->emoji dict, no AI/cloud.
+    # Opt-in (off by default); the Anton caption font has no emoji glyphs, so
+    # emojis are rasterized from a bundled colour-emoji font (Noto Color Emoji)
+    # and composited as image overlays. Best-effort: a missing font / glyph is
+    # silently skipped so captions + MP4 + SRT still render.
+    CAPTION_EMOJI_ENABLED = os.environ.get("SHORTSMITH_CAPTION_EMOJI", "0").lower() not in {"0", "false", "no"}
+    CAPTION_EMOJI_FONT: Path = _env_path(
+        "SHORTSMITH_CAPTION_EMOJI_FONT", BASE_DIR / "assets" / "fonts" / "NotoColorEmoji.ttf"
+    )
+    # Emoji height as a fraction of CAPTION_FONT_SIZE.
+    CAPTION_EMOJI_SIZE_RATIO = float(os.environ.get("SHORTSMITH_CAPTION_EMOJI_SIZE", "0.9"))
+    # Minimum seconds between two emojis so they accent rather than spam.
+    CAPTION_EMOJI_MIN_GAP = float(os.environ.get("SHORTSMITH_CAPTION_EMOJI_GAP", "2.0"))
+    # Vertical px gap between the emoji and the top of the caption band.
+    CAPTION_EMOJI_MARGIN = int(os.environ.get("SHORTSMITH_CAPTION_EMOJI_MARGIN", "24"))
+    # Keyword -> emoji map. Keys are normalized single words (lower-case, no
+    # punctuation) matched against each spoken word. Mixed English + a few
+    # Roman-Urdu hits to mirror the bilingual scorer lists. Like FILLER_WORDS,
+    # this is a hardcoded dict (not env-overridable).
+    CAPTION_EMOJI_KEYWORDS = {
+        # reactions / emphasis
+        "fire": "🔥", "lit": "🔥", "hot": "🔥",
+        "love": "❤️", "loved": "❤️", "heart": "❤️",
+        "wow": "🤯", "crazy": "🤯", "insane": "🤯", "mindblowing": "🤯",
+        "best": "🏆", "win": "🏆", "winner": "🏆", "champion": "🏆",
+        "stop": "🛑", "never": "🚫", "dont": "🚫",
+        "secret": "🤫", "secrets": "🤫",
+        "idea": "💡", "ideas": "💡", "smart": "💡", "genius": "💡",
+        "money": "💰", "cash": "💰", "rich": "💰", "profit": "💰", "paisa": "💰",
+        "time": "⏰", "fast": "⚡", "quick": "⚡", "speed": "⚡",
+        "boom": "💥", "huge": "💥", "big": "💥",
+        "yes": "✅", "correct": "✅", "right": "✅", "true": "✅",
+        "no": "❌", "wrong": "❌", "false": "❌",
+        "look": "👀", "watch": "👀", "see": "👀", "dekho": "👀",
+        "listen": "👂", "hear": "👂",
+        "think": "🧠", "brain": "🧠", "mind": "🧠",
+        "rocket": "🚀", "launch": "🚀", "grow": "📈", "growth": "📈", "growing": "📈",
+        "warning": "⚠️", "danger": "⚠️", "careful": "⚠️",
+        "amazing": "✨", "magic": "✨", "perfect": "✨",
+        "strong": "💪", "power": "💪", "powerful": "💪",
+        "goal": "🎯", "target": "🎯", "focus": "🎯",
+        "party": "🎉", "celebrate": "🎉",
+    }
+
     # --- Filler / silence trim (B2) ---------------------------------------
     # "Magic cut": splice out filler words/phrases (reusing FILLER_WORDS /
     # FILLER_PHRASES) and collapse long inter-word silences from each clip.

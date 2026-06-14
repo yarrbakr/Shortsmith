@@ -22,9 +22,9 @@
 
 | | |
 |---|---|
-| **Active branch** | `feature/silence-trim` (dev on `claude/eager-ride-707rtd`) — **B2** built |
-| **Phase** | v1 complete (Phases 0–6 ✅). Post-v1: **B3** + **B1** + **B2** shipped. |
-| **Next up** | _Pick the next backlog item — e.g. B4 auto-emoji, B5 aspect presets, A1 audio fix, or B8 grade calibration._ |
+| **Active branch** | `feature/auto-emoji` (dev on `claude/eager-hypatia-l3n5je`) — **B4** built |
+| **Phase** | v1 complete (Phases 0–6 ✅). Post-v1: **B3** + **B1** + **B2** + **B4** shipped. |
+| **Next up** | _Pick the next backlog item — e.g. B5 aspect presets, A1 audio fix, or B8 grade calibration._ |
 
 ---
 
@@ -78,7 +78,7 @@ Prioritised against the two chosen directions: **(A) Fix & polish v1** and
 | B1 | Multiple caption styles (Hormozi multi-word + highlight / word-pop) | `feature/caption-styles` | ✅ | Added the dominant 2026 **Hormozi** karaoke style (phrase + highlighted spoken word) next to word-pop; selectable via env + a UI "Advanced options" dropdown; default now Hormozi. Per-job style rides the clip dict (no render-contract change). progress.md → Post-v1 → B1. |
 | B2 | Filler-word & silence removal | `feature/silence-trim` | ✅ | "Magic cut": new `pipeline/trimmer.py` splices out filler words/phrases + long silences from word timestamps; renderer concatenates keep-ranges and re-syncs captions (no render-contract change, captions.py untouched). Per-job toggle (default off) in Advanced options. progress.md → Post-v1 → B2. |
 | B3 | Virality score / A–F grade in the UI | `feature/virality-score` | ✅ | Surfaces the score we **already compute** as A–F + 0–100 + a *relative* standout signal + collapsible per-signal breakdown. Confirmed live. progress.md → Post-v1 → B3. Follow-up: **B8**. |
-| B4 | Auto-emojis on captions | `feature/auto-emoji` | 📋 | Local keyword→emoji dict; no AI/cloud. |
+| B4 | Auto-emojis on captions | `feature/auto-emoji` | ✅ | Curated local keyword→emoji dict pops a relevant emoji **above** keyword-matched captions; no AI/cloud. **Opt-in.** Bundled Noto Color Emoji (Anton has no emoji glyphs); per-job toggle rides the clip dict (no render-contract change); UI checkbox in Advanced options. progress.md → Post-v1 → B4. |
 | B5 | Platform export presets (9:16 / 1:1 / 4:5 / 16:9) | `feature/aspect-presets` | 📋 | Config-driven render dimensions per target platform. |
 | B6 | Background music (bundled royalty-free, ducked under speech) | `feature/bg-music` | 📋 | Ship OFL/CC0 tracks; mix at low volume. |
 | B7 | Active-speaker tracking auto-reframe (eased pan) | `feature/speaker-tracking` | 📋 | Upgrade of existing optional Haar face detection → tracked panning. Heaviest of the set on CPU. |

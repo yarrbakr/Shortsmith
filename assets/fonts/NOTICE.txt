@@ -1,0 +1,17 @@
+Bundled fonts and their licenses
+=================================
+
+Anton-Regular.ttf
+  Anton by Vernon Adams / Igino Marini.
+  Licensed under the SIL Open Font License v1.1 (see OFL.txt).
+  Used for burned-in captions.
+
+NotoColorEmoji.ttf
+  Noto Color Emoji by Google.
+  Copyright 2022 Google Inc. Licensed under the SIL Open Font License v1.1.
+  Source: https://github.com/googlefonts/noto-emoji
+  Used by the auto-emoji caption feature (B4) to rasterize emoji glyphs,
+  since the caption font (Anton) contains no emoji glyphs.
+
+Both fonts ship in-repo so a fresh clone renders fully offline on Windows
+and Ubuntu (no system fonts required), per the project's local-first rule.

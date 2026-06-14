@@ -406,6 +406,62 @@ and clips render in that style. ✅
 
 ---
 
+### B4 — Auto-emojis on captions ✅ (branch `feature/auto-emoji`, dev on `claude/eager-hypatia-l3n5je`)
+**Depends on:** Phase 5 (caption engine) + Phase 6 (UI). **Goal:** when a spoken word
+matches a curated keyword dictionary, pop a relevant emoji in **above** the caption band
+(the short-form "reaction emoji over the word" look). 100% local — a static keyword→emoji
+dict, no AI/cloud — selectable via config/env *and* a new UI checkbox. **Opt-in (off by
+default).**
+
+**Deliverables:**
+- [x] `CONFIG.CAPTION_EMOJI_ENABLED` (default **off**, env `SHORTSMITH_CAPTION_EMOJI`) +
+      `CAPTION_EMOJI_KEYWORDS` (70-entry normalized single-word → emoji dict, English +
+      a few Roman-Urdu hits, hardcoded like `FILLER_WORDS`) + tunables
+      `CAPTION_EMOJI_FONT`/`_SIZE_RATIO`/`_MIN_GAP`/`_MARGIN` (all env-overridable).
+- [x] Bundled **Noto Color Emoji** (`assets/fonts/NotoColorEmoji.ttf`, SIL OFL) — the
+      caption font (Anton) has no emoji glyphs and moviepy's PIL text path does no font
+      fallback, so emojis are rasterized separately.
+- [x] `captions._make_emoji_clip` — PIL renders the glyph at Noto's native 109px CBDT
+      strike with `embedded_color=True`, tight-crops via `getbbox`, scales to size, wraps
+      as a transparent moviepy `ImageClip`. Best-effort → `None` on missing font/glyph.
+- [x] `captions.build_emoji_clips` — style-independent overlay builder: ≤1 emoji per
+      `CAPTION_EMOJI_MIN_GAP` seconds (density cap), timed to the matched word with a short
+      linger, centered horizontally just above the caption band, same `_pop_scale` pop-in.
+- [x] `apply_captions` composites emoji clips on top of the captions (works for both
+      `hormozi` and `word_pop`); SRT export untouched (emoji never enters subtitles).
+- [x] Per-job toggle plumbed UI → `/upload` → `Job.auto_emoji` → orchestrator → clip dict
+      → captions **without changing the locked `renderer.render` signature**.
+- [x] UI: "Advanced options" gains an `Auto-emojis` checkbox (unchecked); `app.js` appends
+      it to the upload FormData; `/upload` reads/parses it (absent → config default).
+
+**Done when:** a user can enable auto-emojis in the UI (or via `SHORTSMITH_CAPTION_EMOJI=1`)
+and keyword-matched words render a relevant emoji above the caption. ✅
+
+**Notes:**
+- **No render-contract change (carry-forward below).** Mirrors B1 exactly: `auto_emoji`
+  rides `clip["auto_emoji"]`; `apply_captions` reads it (None → `CONFIG.CAPTION_EMOJI_ENABLED`).
+- **Boolean resolution, not `or`.** Orchestrator uses
+  `job.auto_emoji if job.auto_emoji is not None else CONFIG.CAPTION_EMOJI_ENABLED` (an `or`
+  would mishandle an explicit `False`); `/upload` maps absent→`None`, else truthy string.
+- **Opt-in** so existing output is unchanged by default and the feature degrades cleanly if
+  the emoji font is absent (no emojis, captions + MP4 + SRT still render — the Phase-5 best-
+  effort pattern).
+- **Single bundled font, any emoji.** Noto Color Emoji covers the whole dict, so editing the
+  keyword map needs no new per-emoji assets. ~10.6 MB committed under `assets/` (not
+  gitignored) so a fresh clone works offline; attribution in `assets/fonts/NOTICE.txt`.
+- **Brand-purple untouched:** emojis are full-colour glyphs above the band; the caption colour
+  system (`CAPTION_COLOR`/`CAPTION_HIGHLIGHT_COLOR`) is unchanged.
+- Verified in this CPU sandbox (heavy moviepy/ffmpeg deps not installed — full E2E deferred as
+  in B1): config loads the 70-keyword map; `_emoji_for`/`_normalize` match case/punctuation/
+  Roman-Urdu and reject non-keywords; the **real Noto font rasterizes** 🔥💰❤️⚠️👀🤯 (incl.
+  multi-codepoint VS-16 emoji) to full-alpha RGBA glyphs via PIL `embedded_color`;
+  `build_emoji_clips` honours the 2.0 s density cap (3 near-duplicate hits → 2 clips),
+  positions emojis above the caption band with in-bounds coords, and returns `[]` for empty/
+  no-match input. All changed modules byte-compile; `app.js` passes `node --check`; the index
+  template carries the unchecked checkbox.
+
+---
+
 ### B2 — Filler-word & silence removal ✅ (branch `feature/silence-trim`, dev on `claude/eager-ride-707rtd`)
 **Depends on:** Phase 2 (word timestamps) + Phase 3 (filler lists) + Phase 4 (render). **Goal:**
 a "magic cut" that splices out filler words/phrases and collapses long inter-word silences from
@@ -545,6 +601,18 @@ stay synced. ✅
   (was the implicit word_pop of Phase 5). `CAPTION_COLOR` (previously unused) is now consumed as
   the inactive-word colour; `CAPTION_HIGHLIGHT_COLOR` (#7C3AED) remains the active/highlight colour.
 
+- **[B4 (post-v1) → captions/render] Auto-emoji is per-job, carried on the clip dict.**
+  The orchestrator stamps `clip["auto_emoji"]` (from `Job.auto_emoji`; `None` → resolved to
+  `CONFIG.CAPTION_EMOJI_ENABLED` with an explicit `is not None` check, **not** `or`) before
+  `renderer.render`; `apply_captions` reads it and composites `build_emoji_clips` overlays on
+  top of the captions. **The `renderer.render(video_path, clip, out_dir)` signature is
+  unchanged** — same channel as B1's `caption_style` (ride the clip dict; don't add render
+  args). Emojis render from the bundled **Noto Color Emoji** font (`CONFIG.CAPTION_EMOJI_FONT`)
+  because the Anton caption font has no emoji glyphs and moviepy's PIL text path does no font
+  fallback; the keyword→emoji map is `CONFIG.CAPTION_EMOJI_KEYWORDS` (matched on a normalized
+  single word). The feature is **opt-in** (`CAPTION_EMOJI_ENABLED` default off) and best-effort
+  (missing font/glyph → no emoji, MP4 + captions + SRT still produced). SRT is unaffected.
+
 - **[B2 (post-v1) → render/captions] Per-job filler/silence trim rides the clip dict; the renderer
   splices keep-ranges.** The orchestrator stamps `clip["trim_silence"]` (from `Job.trim_silence`);
   `renderer.render` calls `trimmer.plan_trim(clip)` and, when it returns a plan, builds the clip by
@@ -557,6 +625,23 @@ stay synced. ✅
   follow this same pattern: transform `words` + pass a clip copy, never change the render signature.
 
 ## Changelog
+- **2026-06-13** — **B4: auto-emojis on captions** (branch `feature/auto-emoji`, dev on
+  `claude/eager-hypatia-l3n5je`). When a spoken word matches a curated keyword dict, a relevant
+  emoji pops in **above** the caption band (short-form "reaction emoji over the word"). 100%
+  local: static `CONFIG.CAPTION_EMOJI_KEYWORDS` (70 entries, English + Roman-Urdu), no AI/cloud.
+  **Opt-in** (`SHORTSMITH_CAPTION_EMOJI` default off). Because Anton has no emoji glyphs and
+  moviepy's PIL text path does no font fallback, emojis are rasterized separately: bundled
+  **Noto Color Emoji** (`assets/fonts/NotoColorEmoji.ttf`, OFL) → `_make_emoji_clip` (PIL
+  `embedded_color` at the 109px CBDT strike, tight-crop, scale, transparent `ImageClip`) →
+  `build_emoji_clips` (style-independent; ≤1 emoji per `CAPTION_EMOJI_MIN_GAP` s, timed to the
+  word, centered above the band, `_pop_scale` pop-in). `apply_captions` composites emojis over
+  both caption styles; SRT untouched. Per-job toggle plumbed `/upload` → `Job.auto_emoji` →
+  orchestrator → `clip["auto_emoji"]` → captions, **without changing the locked `renderer.render`
+  signature**; UI gains an `Auto-emojis` checkbox in Advanced options. New config tunables
+  `CAPTION_EMOJI_ENABLED/_FONT/_SIZE_RATIO/_MIN_GAP/_MARGIN/_KEYWORDS`. Verified in-sandbox
+  (full ffmpeg E2E deferred as in B1): real Noto font rasterizes multi-codepoint emoji to RGBA
+  via PIL; matching + density-cap + above-band placement unit-checked; modules compile, `app.js`
+  passes `node --check`. See Post-v1 → B4 and the `[B4 → captions/render]` carry-forward.
 - **2026-06-13** — **B2: filler-word & silence removal** (branch `feature/silence-trim`, dev on
   `claude/eager-ride-707rtd`). New `pipeline/trimmer.py` (`plan_trim`) computes keep-ranges + clip-local
   remapped words from each clip's word timestamps, dropping filler words/phrases (reusing the scorer's
