@@ -30,12 +30,13 @@ def _output_name(start: float, end: float) -> str:
 
 
 def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
-    """Render a single selected clip to a 9:16 MP4.
+    """Render a single selected clip to an MP4 at the clip's chosen aspect.
 
     Args:
         video_path: source video to cut from.
         clip: a selected clip dict carrying at least ``start``/``end`` (seconds
-            in the source timeline).
+            in the source timeline) and optionally ``aspect_ratio`` (a key in
+            ``CONFIG.ASPECT_PRESETS``; defaults to ``CONFIG.ASPECT_RATIO`` = 9:16).
         out_dir: per-job output directory for the rendered file.
 
     Returns:
@@ -92,7 +93,16 @@ def render(video_path: Path, clip: dict, out_dir: Path) -> Path:
             caption_clip = clip
 
         focus = effects.detect_focus_x_ratio(base) if CONFIG.FACE_DETECT else 0.5
-        vertical = effects.reframe_to_vertical(base, focus_x_ratio=focus)
+        # Per-job output aspect (B5) rides on the clip dict. Resolve it to a
+        # concrete (w, h) preset and hand it to the reframe; everything after
+        # reframe reads the actual frame size, so captions/watermark adapt.
+        aspect = clip.get("aspect_ratio") or CONFIG.ASPECT_RATIO
+        target_size = CONFIG.ASPECT_PRESETS.get(
+            aspect, CONFIG.ASPECT_PRESETS[CONFIG.ASPECT_RATIO]
+        )
+        vertical = effects.reframe_to_vertical(
+            base, focus_x_ratio=focus, target_size=target_size
+        )
         final = effects.punch_in_zoom(vertical)
 
         # Burn word-synced captions (best-effort) and export the sibling .srt.

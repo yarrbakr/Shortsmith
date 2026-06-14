@@ -11,8 +11,9 @@ with a thick stroke for readability, at the cost of per-word compositing.
 
 Contract & timeline (see progress.md ``[Phase 4 → Phase 5]`` carry-forward):
 ``apply_captions`` is called inside ``renderer.render`` *after* the clip has been
-reframed + zoomed (so it is exactly ``TARGET_WIDTH x TARGET_HEIGHT``) and *before*
-``write_videofile``. Each selected clip carries word-level timestamps in the
+reframed + zoomed and *before* ``write_videofile``. Caption geometry is derived
+from the *actual* ``final_clip.size`` (the chosen aspect preset, B5), not the
+9:16 CONFIG constants. Each selected clip carries word-level timestamps in the
 **source** timeline; we offset them by ``clip["start"]`` onto the cut clip's local
 timeline. Everything degrades gracefully: a missing/broken font or empty words
 skips the burn but the MP4 still renders and an ``.srt`` is still written — a job
@@ -81,8 +82,13 @@ def _pop_scale(t: float) -> float:
     return 0.7 + 0.3 * eased
 
 
-def _make_text_clip(text: str, color: str | None = None):
+def _make_text_clip(text: str, frame_w: int, scale: float, color: str | None = None):
     """Build a single centered word ``TextClip``, shrinking the font if it overflows.
+
+    ``frame_w`` is the actual rendered frame width and ``scale`` is
+    ``frame_w / CAPTION_REFERENCE_WIDTH`` — together they keep the font, stroke,
+    and safe width proportional across aspect presets (B5). On the 9:16 default
+    ``scale == 1.0`` and ``frame_w == TARGET_WIDTH``, so sizing is unchanged.
 
     ``color`` defaults to the accent ``CAPTION_HIGHLIGHT_COLOR`` (the word_pop
     look); the hormozi style passes the inactive (``CAPTION_COLOR``) or active
@@ -96,8 +102,9 @@ def _make_text_clip(text: str, color: str | None = None):
 
     color = color or CONFIG.CAPTION_HIGHLIGHT_COLOR
     font = str(CONFIG.CAPTION_FONT)
-    size = CONFIG.CAPTION_FONT_SIZE
-    max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * CONFIG.TARGET_WIDTH
+    size = max(16, int(round(CONFIG.CAPTION_FONT_SIZE * scale)))
+    stroke = max(1, int(round(CONFIG.CAPTION_STROKE_WIDTH * scale)))
+    max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * frame_w
 
     def _build(font_size: int):
         return TextClip(
@@ -106,7 +113,7 @@ def _make_text_clip(text: str, color: str | None = None):
             font_size=font_size,
             color=color,
             stroke_color=CONFIG.CAPTION_STROKE_COLOR,
-            stroke_width=CONFIG.CAPTION_STROKE_WIDTH,
+            stroke_width=stroke,
             method="label",
         )
 
@@ -119,16 +126,20 @@ def _make_text_clip(text: str, color: str | None = None):
     return tc
 
 
-def build_word_clips(words_local: list[dict], clip_duration: float) -> list:
+def build_word_clips(words_local: list[dict], clip_duration: float,
+                     frame_w: int, frame_h: int) -> list:
     """Build positioned, timed, pop-in ``TextClip`` overlays for each word.
 
     Each word is shown from its own start until the next word's start (held, so
     there's no flicker between words), clamped to the clip. The very last word
     lingers to ``word.end + CAPTION_SYNC_TOLERANCE`` (capped at the clip end).
-    Per-word failures are skipped rather than raised.
+    ``frame_w``/``frame_h`` are the actual rendered dimensions, so the caption
+    band tracks the chosen aspect preset (B5). Per-word failures are skipped
+    rather than raised.
     """
     clips: list = []
-    target_center_y = CONFIG.CAPTION_POSITION_RATIO * CONFIG.TARGET_HEIGHT
+    scale = frame_w / CONFIG.CAPTION_REFERENCE_WIDTH
+    target_center_y = CONFIG.CAPTION_POSITION_RATIO * frame_h
     n = len(words_local)
 
     for i, word in enumerate(words_local):
@@ -143,7 +154,7 @@ def build_word_clips(words_local: list[dict], clip_duration: float) -> list:
             continue
 
         try:
-            tc = _make_text_clip(word["word"])
+            tc = _make_text_clip(word["word"], frame_w, scale)
         except Exception:  # noqa: BLE001 - bad glyph/font → skip this word, keep going
             continue
         if tc is None:
@@ -187,15 +198,18 @@ def _group_phrases(words_local: list[dict], max_words: int) -> list[list[dict]]:
     return phrases
 
 
-def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
+def build_hormozi_clips(words_local: list[dict], clip_duration: float,
+                        frame_w: int, frame_h: int) -> list:
     """Build positioned, timed multi-word "karaoke" caption overlays.
 
     Each phrase (short word group) is laid out as a centered, wrap-capable line
     in the lower third. Every word gets a white BASE clip spanning the phrase's
     whole visible window, plus a highlight clip (accent ``CAPTION_HIGHLIGHT_COLOR``)
     at the *same* (x, y) spanning only that word's spoken interval, composited on
-    top — so the highlight sweeps word to word. Per-word / per-phrase failures
-    are skipped rather than raised.
+    top — so the highlight sweeps word to word. ``frame_w``/``frame_h`` are the
+    actual rendered dimensions, so layout (center, wrap width, spacing) tracks
+    the chosen aspect preset (B5). Per-word / per-phrase failures are skipped
+    rather than raised.
     """
     if clip_duration <= 0:
         return []
@@ -204,10 +218,11 @@ def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
     if not phrases:
         return []
 
-    target_center_y = CONFIG.CAPTION_POSITION_RATIO * CONFIG.TARGET_HEIGHT
-    max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * CONFIG.TARGET_WIDTH
-    word_spacing = CONFIG.CAPTION_HORMOZI_WORD_SPACING
-    line_spacing = CONFIG.CAPTION_HORMOZI_LINE_SPACING
+    scale = frame_w / CONFIG.CAPTION_REFERENCE_WIDTH
+    target_center_y = CONFIG.CAPTION_POSITION_RATIO * frame_h
+    max_width = CONFIG.CAPTION_MAX_WIDTH_RATIO * frame_w
+    word_spacing = int(round(CONFIG.CAPTION_HORMOZI_WORD_SPACING * scale))
+    line_spacing = int(round(CONFIG.CAPTION_HORMOZI_LINE_SPACING * scale))
 
     clips: list = []
     num_phrases = len(phrases)
@@ -228,7 +243,7 @@ def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
         built: list[dict] = []  # {idx, word, base, w, h}
         for idx, word in enumerate(phrase):
             try:
-                base = _make_text_clip(word["word"], color=CONFIG.CAPTION_COLOR)
+                base = _make_text_clip(word["word"], frame_w, scale, color=CONFIG.CAPTION_COLOR)
             except Exception:  # noqa: BLE001 - bad glyph/font → drop this word
                 continue
             if base is None:
@@ -262,7 +277,7 @@ def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
         for li, line in enumerate(lines):
             line_h = line_heights[li]
             line_w = sum(it["w"] for it in line) + word_spacing * (len(line) - 1)
-            x_cursor = (CONFIG.TARGET_WIDTH - line_w) / 2.0
+            x_cursor = (frame_w - line_w) / 2.0
             y = int(round(y_cursor))
 
             for it in line:
@@ -290,7 +305,7 @@ def build_hormozi_clips(words_local: list[dict], clip_duration: float) -> list:
                 hl_end = min(hl_end, phrase_end)
                 if hl_end - hl_start > 0:
                     try:
-                        hl = _make_text_clip(word["word"], color=CONFIG.CAPTION_HIGHLIGHT_COLOR)
+                        hl = _make_text_clip(word["word"], frame_w, scale, color=CONFIG.CAPTION_HIGHLIGHT_COLOR)
                     except Exception:  # noqa: BLE001 - keep the white base, skip highlight
                         hl = None
                     if hl is not None:
@@ -376,24 +391,29 @@ def _make_emoji_clip(emoji: str, size_px: int):
         return None
 
 
-def build_emoji_clips(words_local: list[dict], clip_duration: float) -> list:
+def build_emoji_clips(words_local: list[dict], clip_duration: float,
+                      frame_w: int, frame_h: int) -> list:
     """Build emoji overlays above the caption band for keyword-matched words (B4).
 
     Style-independent (used by both caption styles). At most one emoji per
     ``CAPTION_EMOJI_MIN_GAP`` seconds so they accent rather than spam. Each emoji
     shows from its word's start and lingers briefly (to the next word / word end +
     ``CAPTION_SYNC_TOLERANCE``, capped at the clip end), centered horizontally just
-    above the caption band, with the same pop-in scale as the captions. Per-word
-    failures are skipped rather than raised.
+    above the caption band, with the same pop-in scale as the captions.
+    ``frame_w``/``frame_h`` are the actual rendered dimensions, so emoji size +
+    position track the chosen aspect preset (B5). Per-word failures are skipped
+    rather than raised.
     """
     if clip_duration <= 0 or not CONFIG.CAPTION_EMOJI_KEYWORDS:
         return []
 
-    size_px = max(1, int(CONFIG.CAPTION_EMOJI_SIZE_RATIO * CONFIG.CAPTION_FONT_SIZE))
-    caption_center_y = CONFIG.CAPTION_POSITION_RATIO * CONFIG.TARGET_HEIGHT
+    scale = frame_w / CONFIG.CAPTION_REFERENCE_WIDTH
+    font_px = CONFIG.CAPTION_FONT_SIZE * scale
+    size_px = max(1, int(round(CONFIG.CAPTION_EMOJI_SIZE_RATIO * font_px)))
+    caption_center_y = CONFIG.CAPTION_POSITION_RATIO * frame_h
     # Sit the emoji above the top of a centered caption word.
     y_top = int(round(
-        caption_center_y - CONFIG.CAPTION_FONT_SIZE / 2.0 - size_px - CONFIG.CAPTION_EMOJI_MARGIN
+        caption_center_y - font_px / 2.0 - size_px - CONFIG.CAPTION_EMOJI_MARGIN * scale
     ))
     y_top = max(0, y_top)
 
@@ -460,17 +480,19 @@ def apply_captions(final_clip, clip: dict, out_dir: Path, mp4_path: Path):
         style = (clip.get("caption_style") or CONFIG.CAPTION_STYLE or "word_pop").lower()
         if style not in CONFIG.CAPTION_STYLES:
             style = "word_pop"  # defensive: never trust an unknown style
+        frame_w, frame_h = final_clip.size
         builder = build_hormozi_clips if style == "hormozi" else build_word_clips
-        word_clips = builder(words_local, float(final_clip.duration))
+        word_clips = builder(words_local, float(final_clip.duration), frame_w, frame_h)
 
         # Auto-emojis (B4): per-job toggle rides the clip dict; None → config
-        # default. Drawn on top of the captions, above the caption band.
+        # default. Drawn on top of the captions, above the caption band. Passed
+        # the actual frame size (B5) so they track the chosen aspect preset.
         emoji_clips: list = []
         auto_emoji = clip.get("auto_emoji")
         if auto_emoji is None:
             auto_emoji = CONFIG.CAPTION_EMOJI_ENABLED
         if auto_emoji and Path(CONFIG.CAPTION_EMOJI_FONT).is_file():
-            emoji_clips = build_emoji_clips(words_local, float(final_clip.duration))
+            emoji_clips = build_emoji_clips(words_local, float(final_clip.duration), frame_w, frame_h)
 
         overlays = [*word_clips, *emoji_clips]
         if not overlays:

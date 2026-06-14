@@ -65,6 +65,12 @@ def create_app() -> Flask:
         if style not in CONFIG.CAPTION_STYLES:
             style = CONFIG.CAPTION_STYLE
 
+        # Optional per-job output aspect (B5). Missing/unknown → default; never
+        # reject the upload over this. Labels are case-sensitive (e.g. "16:9").
+        aspect = request.form.get("aspect_ratio") or CONFIG.ASPECT_RATIO
+        if aspect not in CONFIG.ASPECT_PRESETS:
+            aspect = CONFIG.ASPECT_RATIO
+
         # Optional per-job auto-emoji toggle (B4). Absent → None (use config
         # default); otherwise a truthy string. Never reject the upload over it.
         emoji_raw = request.form.get("auto_emoji")
@@ -72,7 +78,7 @@ def create_app() -> Flask:
 
         # Optional per-job filler/silence removal (B2); absent checkbox → off.
         trim_silence = (request.form.get("trim_silence") or "").lower() in {"1", "true", "yes", "on"}
-        job = JOBS.create(filename=safe_name, caption_style=style,
+        job = JOBS.create(filename=safe_name, caption_style=style, aspect_ratio=aspect,
                           auto_emoji=auto_emoji, trim_silence=trim_silence)
 
         job_dir = CONFIG.UPLOAD_DIR / job.id

@@ -37,6 +37,7 @@ class Job:
     error: str | None = None
     video_path: Path | None = None
     caption_style: str | None = None  # per-job caption style (B1); None → CONFIG default
+    aspect_ratio: str | None = None  # per-job output aspect (B5); None → CONFIG default
     auto_emoji: bool | None = None  # per-job auto-emoji toggle (B4); None → CONFIG default
     trim_silence: bool = False  # per-job filler/silence removal (B2)
     results: list[dict] = field(default_factory=list)
@@ -52,6 +53,7 @@ class Job:
             "message": self.message,
             "error": self.error,
             "caption_style": self.caption_style,
+            "aspect_ratio": self.aspect_ratio,
             "auto_emoji": self.auto_emoji,
             "trim_silence": self.trim_silence,
             "results": self.results,
@@ -70,6 +72,7 @@ class JobManager:
         self,
         filename: str,
         caption_style: str | None = None,
+        aspect_ratio: str | None = None,
         auto_emoji: bool | None = None,
         trim_silence: bool = False,
     ) -> Job:
@@ -79,6 +82,7 @@ class JobManager:
             id=job_id,
             filename=filename,
             caption_style=caption_style,
+            aspect_ratio=aspect_ratio,
             auto_emoji=auto_emoji,
             trim_silence=trim_silence,
         )

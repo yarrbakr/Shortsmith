@@ -46,13 +46,16 @@ def run_pipeline(job_id: str) -> None:
         # The whole batch's per-signal scores, so each clip's "stands out"
         # signal is judged relative to its peers (B3).
         peer_components = [c.get("components") or {} for c in selected]
-        # Per-job caption style (B1) + auto-emoji toggle (B4) ride on the clip
-        # dict so the locked renderer.render signature stays unchanged;
-        # apply_captions reads them.
+        # Per-job caption style (B1), output aspect (B5), auto-emoji toggle (B4)
+        # and filler/silence removal (B2) all ride on the clip dict so the locked
+        # renderer.render signature stays unchanged; the renderer reads the
+        # aspect/trim and apply_captions reads the style/emoji.
         caption_style = job.caption_style or CONFIG.CAPTION_STYLE
+        aspect_ratio = job.aspect_ratio or CONFIG.ASPECT_RATIO
         auto_emoji = job.auto_emoji if job.auto_emoji is not None else CONFIG.CAPTION_EMOJI_ENABLED
         for index, clip in enumerate(selected):
             clip["caption_style"] = caption_style
+            clip["aspect_ratio"] = aspect_ratio
             clip["auto_emoji"] = auto_emoji
             clip["trim_silence"] = job.trim_silence  # B2: per-job filler/silence removal
             out_path = renderer.render(video_path, clip, out_dir)

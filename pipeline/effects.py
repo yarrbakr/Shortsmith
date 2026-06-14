@@ -45,16 +45,20 @@ def _zoom_factor(t: float) -> float:
     return start + (end - start) * progress
 
 
-def reframe_to_vertical(clip, focus_x_ratio: float = 0.5):
-    """Scale-to-cover and crop ``clip`` to the configured 9:16 dimensions.
+def reframe_to_vertical(clip, focus_x_ratio: float = 0.5, target_size: tuple | None = None):
+    """Scale-to-cover and crop ``clip`` to ``target_size`` (default = CONFIG 9:16).
 
     The source is scaled so it fully covers the target (no letterboxing), then
     cropped: vertically centered, horizontally centered on ``focus_x_ratio``
     (0.0 = left edge, 1.0 = right edge) of the *scaled* frame.
 
-    Returns a clip whose ``size`` is exactly ``(TARGET_WIDTH, TARGET_HEIGHT)``.
+    ``target_size`` is ``(width, height)`` in px; when omitted it falls back to
+    ``(CONFIG.TARGET_WIDTH, CONFIG.TARGET_HEIGHT)`` so existing callers (and the
+    9:16 default) are unaffected. The crop math is fully parametric on the
+    target, so any aspect works (B5). Returns a clip whose ``size`` is exactly
+    ``target_size``.
     """
-    target_w, target_h = CONFIG.TARGET_WIDTH, CONFIG.TARGET_HEIGHT
+    target_w, target_h = target_size or (CONFIG.TARGET_WIDTH, CONFIG.TARGET_HEIGHT)
     src_w, src_h = clip.size
 
     # max() => cover the whole target; ceil so rounding never leaves us a pixel
@@ -122,15 +126,18 @@ def apply_fades(clip):
     return clip
 
 
-def _watermark_position(logo_w: int, logo_h: int) -> tuple:
-    """Pixel ``(x, y)`` for the watermark given the configured corner + margin."""
-    margin = CONFIG.WATERMARK_MARGIN
-    target_w, target_h = CONFIG.TARGET_WIDTH, CONFIG.TARGET_HEIGHT
+def _watermark_position(logo_w: int, logo_h: int, frame_w: int, frame_h: int,
+                        margin: int) -> tuple:
+    """Pixel ``(x, y)`` for the watermark given the configured corner + margin.
+
+    Positions are relative to the *actual* composited frame (``frame_w`` x
+    ``frame_h``) so the logo lands correctly for any aspect preset (B5).
+    """
     pos = CONFIG.WATERMARK_POSITION
     if pos == "center":
         return ("center", "center")
-    x = margin if "left" in pos else target_w - logo_w - margin
-    y = margin if "top" in pos else target_h - logo_h - margin
+    x = margin if "left" in pos else frame_w - logo_w - margin
+    y = margin if "top" in pos else frame_h - logo_h - margin
     return (int(x), int(y))
 
 
@@ -152,13 +159,18 @@ def apply_watermark(clip):
         from moviepy import CompositeVideoClip, ImageClip
 
         logo = ImageClip(str(CONFIG.WATERMARK_PATH))
-        target_logo_w = int(CONFIG.WATERMARK_WIDTH_RATIO * CONFIG.TARGET_WIDTH)
+        # Size + margin scale to the actual frame, not the 9:16 constants, so
+        # the watermark stays proportional across aspect presets (B5).
+        frame_w, frame_h = clip.size
+        width_ratio = frame_w / CONFIG.CAPTION_REFERENCE_WIDTH
+        target_logo_w = int(CONFIG.WATERMARK_WIDTH_RATIO * frame_w)
         if logo.w and target_logo_w > 0:
             logo = logo.resized(width=target_logo_w)
+        scaled_margin = int(round(CONFIG.WATERMARK_MARGIN * width_ratio))
         logo = (
             logo.with_duration(clip.duration)
             .with_opacity(CONFIG.WATERMARK_OPACITY)
-            .with_position(_watermark_position(logo.w, logo.h))
+            .with_position(_watermark_position(logo.w, logo.h, frame_w, frame_h, scaled_margin))
         )
         out = CompositeVideoClip([clip, logo]).with_duration(clip.duration)
         if clip.audio is not None:

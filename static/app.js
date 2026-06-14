@@ -65,6 +65,8 @@ form.addEventListener("submit", async (event) => {
   data.append("video", fileInput.files[0]);
   const styleSel = document.getElementById("caption-style");
   if (styleSel) data.append("caption_style", styleSel.value);
+  const aspectSel = document.getElementById("aspect-ratio");
+  if (aspectSel) data.append("aspect_ratio", aspectSel.value);
   const emojiToggle = document.getElementById("auto-emoji");
   if (emojiToggle) data.append("auto_emoji", emojiToggle.checked ? "1" : "0");
   const trimEl = document.getElementById("trim-silence");
